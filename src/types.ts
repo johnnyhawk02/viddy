@@ -1,12 +1,5 @@
 export type FFmpegStatus = 'unloaded' | 'loading' | 'ready' | 'encoding' | 'done' | 'error';
 
-export interface FramerateOption {
-  value: number;
-  label: string;
-  badge: string;
-  description: string;
-}
-
 export interface MediaFile {
   file: File;
   name: string;

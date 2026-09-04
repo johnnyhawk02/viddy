@@ -23,7 +23,7 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({
   const handleFiles = (files: FileList | null) => {
     if (!files || files.length === 0) return;
     const file = files[0];
-    if (file.type.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|aac)$/i.test(file.name)) {
+    if (file.type.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|aac|aif|aiff)$/i.test(file.name)) {
       onAudioSelected(file);
     }
   };
@@ -57,7 +57,7 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({
         <label className="text-sm font-semibold text-slate-200 flex items-center gap-2">
           <Music className="w-4 h-4 text-emerald-400" />
           <span>Audio Soundtrack</span>
-          <span className="text-xs font-normal text-slate-400">(MP3, WAV)</span>
+          <span className="text-xs font-normal text-slate-400">(MP3, WAV, AIFF)</span>
         </label>
         {!audioFile && (
           <button
@@ -77,7 +77,7 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({
         ref={inputRef}
         id="audio-file-input"
         type="file"
-        accept="audio/mp3,audio/mpeg,audio/wav,audio/x-wav,audio/ogg,audio/aac"
+        accept="audio/*,.mp3,.wav,.aif,.aiff,.aac,.ogg,.m4a"
         className="hidden"
         disabled={disabled}
         onChange={(e) => handleFiles(e.target.files)}
@@ -103,7 +103,7 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({
             Click to upload or drag & drop audio
           </p>
           <p className="text-xs text-slate-400">
-            Supports MP3, WAV (encoded to AAC 192kbps for MP4)
+            Supports MP3, WAV, AIFF (encoded to AAC 192kbps for MP4)
           </p>
         </div>
       ) : (

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Video, Film, Sparkles, Play, Loader2, ShieldCheck, AlertTriangle, Zap, Gauge } from 'lucide-react';
-import { FFmpegStatus, MediaFile, RenderProgress, InitProgress, LogEntry, VideoOutput, FramerateOption } from './types';
+import { Film, Sparkles, Play, Loader2, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { FFmpegStatus, MediaFile, RenderProgress, InitProgress, LogEntry, VideoOutput } from './types';
 import { initFFmpeg, convertImageAndAudioToVideo } from './utils/ffmpeg';
 import { createSampleImage, createSampleAudio } from './utils/samples';
 import { ImageUploader } from './components/ImageUploader';
@@ -8,46 +8,12 @@ import { AudioUploader } from './components/AudioUploader';
 import { StatusConsole } from './components/StatusConsole';
 import { OutputSection } from './components/OutputSection';
 
-const FRAMERATE_OPTIONS: FramerateOption[] = [
-  {
-    value: 1,
-    label: '1 FPS',
-    badge: 'Ultra Fast',
-    description: 'Encodes ~25x faster. Ideal for still images & album art with zero visual difference.',
-  },
-  {
-    value: 2,
-    label: '2 FPS',
-    badge: 'Very Fast',
-    description: 'Twice per second keyframe pacing with rapid compilation.',
-  },
-  {
-    value: 5,
-    label: '5 FPS',
-    badge: 'Balanced',
-    description: 'Lightweight intermediate frame rate.',
-  },
-  {
-    value: 15,
-    label: '15 FPS',
-    badge: 'Higher',
-    description: 'Standard multi-frame stream.',
-  },
-  {
-    value: 30,
-    label: '30 FPS',
-    badge: 'Standard (Slow)',
-    description: 'Encodes 30 frames/sec. Noticeably slower in single-threaded WASM.',
-  },
-];
-
 export default function App() {
   const [engineStatus, setEngineStatus] = useState<FFmpegStatus>('loading');
   const [initProgress, setInitProgress] = useState<InitProgress | undefined>(undefined);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [progress, setProgress] = useState<RenderProgress>({ ratio: 0, percentage: 0 });
-  const [framerate, setFramerate] = useState<number>(1);
 
   const [imageFile, setImageFile] = useState<MediaFile | null>(null);
   const [audioFile, setAudioFile] = useState<MediaFile | null>(null);
@@ -210,7 +176,7 @@ export default function App() {
         audioFile.file,
         (log) => addLog(log),
         (p) => setProgress(p),
-        framerate
+        1
       );
 
       setVideoOutput(result);
@@ -297,7 +263,7 @@ export default function App() {
               Create MP4 from Still Image & Audio
             </h2>
             <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-2xl leading-relaxed">
-              Combines your image with an audio soundtrack using single-threaded in-browser FFmpeg. Odd image dimensions are scaled automatically so H.264 video rendering completes safely without server uploads.
+              Combines your cover image with an MP3, WAV, or AIFF soundtrack into an MP4 video at 1 FPS for fast, client-side rendering with full audio quality.
             </p>
           </div>
 
@@ -319,71 +285,13 @@ export default function App() {
             />
           </div>
 
-          {/* Framerate & Still Image Speed Optimization Bar */}
-          <div id="framerate-selector-container" className="p-4 rounded-xl bg-slate-900/90 border border-slate-800/80 mb-6 shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-lg bg-amber-500/15 border border-amber-500/25 flex items-center justify-center text-amber-400">
-                  <Zap className="w-4 h-4 fill-amber-400/20" />
-                </div>
-                <div>
-                  <h3 className="text-xs font-semibold text-slate-200 tracking-wide flex items-center gap-2">
-                    STILL IMAGE SPEED OPTIMIZATION
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                      ~25x Faster at 1 FPS
-                    </span>
-                  </h3>
-                  <p className="text-[11px] text-slate-400">
-                    Because this video uses a single still image, reducing the frame rate cuts down ~95% of WASM CPU encoding without changing audio or visual quality.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-              {FRAMERATE_OPTIONS.map((opt) => {
-                const isSelected = framerate === opt.value;
-                return (
-                  <button
-                    key={opt.value}
-                    id={`btn-fps-${opt.value}`}
-                    type="button"
-                    disabled={engineStatus === 'encoding'}
-                    onClick={() => setFramerate(opt.value)}
-                    className={`flex flex-col text-left p-2.5 rounded-lg border transition-all cursor-pointer ${
-                      isSelected
-                        ? 'bg-sky-500/15 border-sky-500/60 text-sky-200 ring-1 ring-sky-500/30'
-                        : 'bg-slate-950/50 border-slate-800/80 text-slate-400 hover:bg-slate-800/60 hover:text-slate-300'
-                    } ${engineStatus === 'encoding' ? 'cursor-not-allowed opacity-60' : ''}`}
-                  >
-                    <div className="flex items-center justify-between w-full mb-1">
-                      <span className="font-mono font-bold text-sm text-slate-100">{opt.label}</span>
-                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                        opt.value === 1
-                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                          : opt.value <= 2
-                          ? 'bg-sky-500/20 text-sky-300'
-                          : 'bg-slate-800 text-slate-400'
-                      }`}>
-                        {opt.badge}
-                      </span>
-                    </div>
-                    <span className="text-[10px] text-slate-400 leading-tight">
-                      {opt.value === 1 ? 'Instant single-image' : opt.description}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
           {/* Action Button Section */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-4 px-5 rounded-xl bg-slate-950/60 border border-slate-800/80 mb-6">
             <div className="text-xs text-slate-400">
               {!imageFile && !audioFile ? (
                 <span className="flex items-center gap-1.5 text-slate-400">
                   <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-                  Please select or drop both an image and audio file to begin.
+                  Please select or drop both an image and audio file (MP3, WAV, or AIFF) to begin.
                 </span>
               ) : !imageFile ? (
                 <span className="flex items-center gap-1.5 text-amber-300">
@@ -401,8 +309,8 @@ export default function App() {
                   {initProgress?.message || 'Loading FFmpeg WASM Core...'}
                 </span>
               ) : (
-                <span className="text-emerald-400 font-medium">
-                  Ready to encode MP4 video with H.264 & AAC!
+                <span className="text-emerald-400 font-medium flex items-center gap-1.5">
+                  Ready to encode MP4 video at 1 FPS (H.264 & AAC)!
                 </span>
               )}
             </div>

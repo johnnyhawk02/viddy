@@ -349,7 +349,7 @@ export async function convertImageAndAudioToVideo(
   const audExt = (audioFile.name.split('.').pop() || 'mp3').toLowerCase();
 
   const safeImgExt = ['jpg', 'jpeg', 'png', 'webp'].includes(imgExt) ? imgExt : 'png';
-  const safeAudExt = ['mp3', 'wav', 'aac', 'ogg', 'm4a'].includes(audExt) ? audExt : 'mp3';
+  const safeAudExt = ['mp3', 'wav', 'aac', 'ogg', 'm4a', 'aif', 'aiff'].includes(audExt) ? audExt : 'mp3';
 
   const inputImg = `input.${safeImgExt}`;
   const inputAud = `input.${safeAudExt}`;
