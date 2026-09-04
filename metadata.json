@@ -1,0 +1,6 @@
+{
+  "name": "Image & Audio to MP4 Converter",
+  "description": "Convert an uploaded image and audio file into a downloadable MP4 video using client-side FFmpeg WebAssembly.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

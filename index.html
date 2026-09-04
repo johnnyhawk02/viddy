@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Image & Audio to MP4 Converter</title>
+    <meta name="description" content="Convert an uploaded image and audio file into a downloadable MP4 video using client-side FFmpeg WebAssembly." />
+    <meta property="og:title" content="Image & Audio to MP4 Converter" />
+    <meta property="og:description" content="Convert an uploaded image and audio file into a downloadable MP4 video using client-side FFmpeg WebAssembly." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Polyfill Worker to route cross-origin worker scripts (e.g. 814.ffmpeg.js) through same-origin Blob -->
+    <script>
+      (function() {
+        if (typeof window === 'undefined' || !window.Worker) return;
+        const OriginalWorker = window.Worker;
+        window.__workerBlobMap = new Map();
+
+        // Preload local /814.ffmpeg.js as Blob URL immediately
+        fetch('/814.ffmpeg.js')
+          .then(r => r.blob())
+          .then(blob => {
+            const blobUrl = URL.createObjectURL(blob);
+            window.__workerBlobMap.set('https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/814.ffmpeg.js', blobUrl);
+            window.__workerBlobMap.set('https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/814.ffmpeg.js', blobUrl);
+            window.__workerBlobMap.set('/814.ffmpeg.js', blobUrl);
+          })
+          .catch(() => {});
+
+        class SafeWorker extends OriginalWorker {
+          constructor(scriptURL, options) {
+            const urlStr = scriptURL instanceof URL ? scriptURL.href : String(scriptURL);
+            
+            // If we have a local blob ready for this URL, use it directly
+            if (window.__workerBlobMap && window.__workerBlobMap.has(urlStr)) {
+              super(window.__workerBlobMap.get(urlStr), options);
+              return;
+            }
+
+            // If cross-origin, wrap into a same-origin Blob using importScripts
+            if (
+              (urlStr.startsWith('http://') || urlStr.startsWith('https://')) &&
+              !urlStr.startsWith(window.location.origin)
+            ) {
+              const blob = new Blob([
+                '/* Cross-origin worker proxy */\n',
+                'importScripts(' + JSON.stringify(urlStr) + ');'
+              ], { type: 'text/javascript' });
+              const blobUrl = URL.createObjectURL(blob);
+              super(blobUrl, options);
+              return;
+            }
+
+            super(scriptURL, options);
+          }
+        }
+
+        window.Worker = SafeWorker;
+      })();
+    </script>
+    <!-- Single-threaded FFmpeg WASM CDN scripts -->
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
+    <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
+  </head>
+  <body class="bg-slate-900 text-slate-100 min-h-screen antialiased">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
