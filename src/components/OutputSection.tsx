@@ -1,5 +1,4 @@
 import React from 'react';
-import { Download, Film, RotateCcw, CheckCircle2 } from 'lucide-react';
 import { VideoOutput } from '../types';
 
 interface OutputSectionProps {
@@ -22,42 +21,14 @@ export const OutputSection: React.FC<OutputSectionProps> = ({ output, onReset })
   };
 
   return (
-    <div
+    <fieldset
       id="output-video-section"
-      className="mt-6 rounded-2xl border border-emerald-500/40 bg-slate-900/90 shadow-2xl p-6 transition-all animate-in fade-in slide-in-from-bottom-4 duration-300"
+      className="web1-fieldset mt-4"
     >
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
-            <Film className="w-4 h-4" />
-          </div>
-          <div>
-            <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-              Generated MP4 Video
-              <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-400">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                Ready
-              </span>
-            </h3>
-            <p className="text-xs text-slate-400">
-              H.264 Video • AAC 192kbps Audio • YUV420p Color • Even Dimensions
-            </p>
-          </div>
-        </div>
-
-        <button
-          id="btn-create-another"
-          type="button"
-          onClick={onReset}
-          className="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-750 text-xs font-medium text-slate-300 hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer"
-        >
-          <RotateCcw className="w-3.5 h-3.5" />
-          Create Another
-        </button>
-      </div>
+      <legend className="web1-legend">3. Generated MP4 Video File</legend>
 
       {/* Video player preview */}
-      <div className="relative rounded-xl overflow-hidden bg-black border border-slate-800 aspect-video max-h-[380px] flex items-center justify-center mx-auto mb-4">
+      <div className="border border-black bg-black p-1 aspect-video max-h-[340px] flex items-center justify-center mx-auto mb-3">
         <video
           id="output-video-player"
           src={output.url}
@@ -70,28 +41,43 @@ export const OutputSection: React.FC<OutputSectionProps> = ({ output, onReset })
       </div>
 
       {/* Details & Download action */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 border-t border-slate-800">
-        <div className="flex items-center gap-4 text-xs text-slate-400 w-full sm:w-auto">
-          <div>
-            <span className="text-slate-500">File: </span>
-            <span className="text-slate-200 font-mono font-medium">{output.filename}</span>
-          </div>
-          <div>
-            <span className="text-slate-500">Size: </span>
-            <span className="text-slate-200 font-mono font-medium">{formatSize(output.size)}</span>
-          </div>
-        </div>
+      <div className="border border-[#cccccc] bg-[#f9f9f9] p-3 text-xs font-serif">
+        <table className="w-full text-xs font-serif mb-3">
+          <tbody>
+            <tr>
+              <td className="w-28 font-bold pr-2">File Name:</td>
+              <td className="font-mono">{output.filename}</td>
+            </tr>
+            <tr>
+              <td className="font-bold pr-2">File Size:</td>
+              <td className="font-mono">{formatSize(output.size)}</td>
+            </tr>
+            <tr>
+              <td className="font-bold pr-2">Video Specs:</td>
+              <td className="font-mono">H.264 Baseline, 1 FPS, AAC Stereo</td>
+            </tr>
+          </tbody>
+        </table>
 
-        <button
-          id="btn-download-video"
-          type="button"
-          onClick={handleDownload}
-          className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-sm shadow-lg shadow-emerald-950/50 flex items-center justify-center gap-2 transition-all transform active:scale-98 cursor-pointer"
-        >
-          <Download className="w-4 h-4" />
-          Download MP4 Video
-        </button>
+        <div className="flex items-center gap-3 pt-2 border-t border-[#dddddd]">
+          <button
+            id="btn-download-video"
+            type="button"
+            onClick={handleDownload}
+            className="web1-btn font-bold text-sm px-4 py-1"
+          >
+            💾 Download MP4 Video
+          </button>
+          <button
+            id="btn-create-another"
+            type="button"
+            onClick={onReset}
+            className="web1-btn text-xs px-3 py-1"
+          >
+            Convert Another File
+          </button>
+        </div>
       </div>
-    </div>
+    </fieldset>
   );
 };
