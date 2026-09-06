@@ -160,44 +160,49 @@ export default function App() {
     !audioFile;
 
   return (
-    <div className="min-h-screen bg-white text-black font-serif p-4 sm:p-8 max-w-3xl mx-auto flex flex-col justify-between">
+    <div className="min-h-screen bg-[#fafafa] text-zinc-900 flex flex-col justify-between p-4 sm:p-8 max-w-3xl mx-auto selection:bg-zinc-900 selection:text-white">
       <div>
-        {/* Web 1.0 Header */}
-        <header id="main-header" className="mb-4">
-          <h1 className="text-2xl sm:text-3xl font-bold text-black mb-1">
-            Image & Audio to MP4 Converter
-          </h1>
-          <p className="text-xs sm:text-sm text-[#333333] leading-relaxed">
-            Create an MP4 video (H.264 / AAC) at 1 frame per second from a static cover image and an audio file. All conversion takes place locally inside your browser via WebAssembly.
-          </p>
-          <hr className="my-3 border-t-2 border-black" />
-        </header>
-
-        {/* Engine status note if loading */}
-        {engineStatus === 'loading' && (
-          <div className="mb-4 p-2 bg-[#fffde7] border border-[#d4cf7b] text-xs font-serif">
-            <i>Status: Loading WASM FFmpeg video core into browser memory... please wait.</i>
+        {/* Minimal Header */}
+        <header id="main-header" className="pt-2 pb-6 sm:pb-8">
+          <div className="flex items-center justify-between gap-4 mb-2">
+            <span className="text-[11px] font-mono uppercase tracking-widest text-zinc-400 font-semibold">
+              WASM Video Compiler
+            </span>
+            {engineStatus === 'loading' && (
+              <span className="text-[11px] font-mono text-zinc-400 flex items-center gap-1.5">
+                <Loader2 className="w-3 h-3 animate-spin text-zinc-500" />
+                loading core...
+              </span>
+            )}
           </div>
-        )}
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-zinc-950 mb-2">
+            Image & Audio to MP4
+          </h1>
+          <p className="text-xs sm:text-sm text-zinc-500 font-normal leading-relaxed max-w-xl">
+            Compile an MP4 video at 1 FPS from a static cover image and an audio soundtrack. Runs 100% locally in-browser via WebAssembly FFmpeg.
+          </p>
+        </header>
 
         {/* Error Banner */}
         {errorMessage && (
-          <div className="mb-4 p-2 bg-[#ffebee] border border-[#c62828] text-xs font-serif text-[#b71c1c] flex items-center justify-between">
-            <span>
-              <b>Error:</b> {errorMessage}
-            </span>
+          <div className="mb-6 p-3.5 rounded-lg border border-red-200 bg-red-50 text-red-900 text-xs flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 truncate">
+              <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+              <span className="truncate">{errorMessage}</span>
+            </div>
             <button
               type="button"
               onClick={initializeEngine}
-              className="web1-btn ml-2 text-xs"
+              className="px-2.5 py-1 rounded bg-white hover:bg-red-100 text-red-700 border border-red-200 text-xs font-mono font-medium flex items-center gap-1 shrink-0 cursor-pointer transition-colors"
             >
+              <RefreshCw className="w-3 h-3" />
               Retry
             </button>
           </div>
         )}
 
         {/* Uploaders Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
           <ImageUploader
             imageFile={imageFile}
             onImageSelected={handleImageSelected}
@@ -214,43 +219,34 @@ export default function App() {
 
         {/* Progress bar during encoding */}
         {engineStatus === 'encoding' && (
-          <div className="my-4 p-3 border border-black bg-[#f4f4f4]">
-            <div className="text-xs font-bold font-serif mb-1">
-              Encoding video in progress: {progress.percentage}% completed...
+          <div className="mb-5 p-4 rounded-xl border border-zinc-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between text-xs font-mono text-zinc-600 mb-2">
+              <span className="flex items-center gap-1.5 font-medium text-zinc-900">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-700" />
+                Encoding MP4 video...
+              </span>
+              <span className="font-semibold">{progress.percentage}%</span>
             </div>
-            <div className="w-full border border-black bg-white h-4 p-[1px]">
+            <div className="w-full h-1.5 bg-zinc-100 rounded-full overflow-hidden">
               <div
-                className="h-full bg-[#000080]"
+                className="h-full bg-zinc-950 transition-all duration-150 rounded-full"
                 style={{ width: `${progress.percentage}%` }}
               />
-            </div>
-            <div className="text-[11px] text-[#555555] font-mono mt-1">
-              Rendering H.264 video stream at 1 FPS with AAC audio.
             </div>
           </div>
         )}
 
-        <hr className="my-4 border-t border-[#888888]" />
-
         {/* Action Row */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 my-3">
-          <div className="text-xs sm:text-sm font-serif">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
+          <div className="text-xs font-mono text-zinc-500">
             {!imageFile || !audioFile ? (
-              <span className="text-[#555555]">
-                <b>Note:</b> Both a cover image and an audio file are required before converting.
-              </span>
+              <span>Upload cover image & audio track to convert</span>
             ) : engineStatus === 'loading' ? (
-              <span className="text-[#666666] italic">
-                WASM core is still initializing...
-              </span>
+              <span className="text-zinc-400">Initializing WASM engine...</span>
             ) : engineStatus === 'encoding' ? (
-              <span className="text-[#000080] font-bold">
-                Currently converting video. Please do not close this tab.
-              </span>
+              <span className="text-zinc-900 font-medium">Encoding in progress...</span>
             ) : (
-              <span className="text-[#006600] font-bold">
-                ✓ Ready. Click &quot;Convert to MP4&quot; to begin.
-              </span>
+              <span className="text-emerald-600 font-medium">● Ready to convert</span>
             )}
           </div>
 
@@ -259,11 +255,23 @@ export default function App() {
             type="button"
             onClick={handleGenerateVideo}
             disabled={isButtonDisabled}
-            className="web1-btn font-bold text-sm px-5 py-2 shrink-0"
+            className={`px-5 py-2.5 rounded-lg text-xs sm:text-sm font-medium flex items-center justify-center gap-2 transition-all cursor-pointer ${
+              isButtonDisabled
+                ? 'bg-zinc-100 text-zinc-400 cursor-not-allowed border border-zinc-200/60'
+                : 'bg-zinc-950 hover:bg-zinc-800 text-white shadow-sm active:scale-[0.99]'
+            }`}
           >
-            {engineStatus === 'encoding'
-              ? `Converting (${progress.percentage}%)...`
-              : 'Convert to MP4'}
+            {engineStatus === 'encoding' ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>Converting ({progress.percentage}%)</span>
+              </>
+            ) : (
+              <>
+                <Play className="w-3.5 h-3.5 fill-current" />
+                <span>Convert to MP4</span>
+              </>
+            )}
           </button>
         </div>
 
@@ -273,9 +281,9 @@ export default function App() {
         )}
       </div>
 
-      {/* Web 1.0 Footer */}
-      <footer className="mt-12 pt-3 border-t border-black text-xs text-[#555555] text-center font-serif">
-        <p>Image & Audio to MP4 Converter • Standard HTML / WebAssembly</p>
+      {/* Minimal Footer */}
+      <footer className="pt-12 pb-4 text-center text-[11px] font-mono text-zinc-400">
+        <span>Image & Audio to MP4 · WebAssembly Client Engine</span>
       </footer>
     </div>
   );
