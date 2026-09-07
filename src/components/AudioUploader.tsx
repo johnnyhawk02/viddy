@@ -1,5 +1,4 @@
 import React, { useRef, useState } from 'react';
-import { Music, UploadCloud, X, Volume2 } from 'lucide-react';
 import { MediaFile } from '../types';
 
 interface AudioUploaderProps {
@@ -57,15 +56,7 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({
   };
 
   return (
-    <div id="audio-uploader-card" className="flex flex-col h-full rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-      <div className="flex items-center justify-between pb-2 mb-3 border-b border-zinc-100">
-        <label className="text-[11px] font-mono font-semibold uppercase tracking-wider text-zinc-600 flex items-center gap-1.5">
-          <Music className="w-3.5 h-3.5 text-zinc-500" />
-          <span>Audio Soundtrack</span>
-        </label>
-        <span className="text-[10px] font-mono text-zinc-400">MP3, WAV, AAC, M4A</span>
-      </div>
-
+    <div id="audio-uploader-card" className="flex flex-col h-full">
       <input
         ref={inputRef}
         id="audio-file-input"
@@ -83,70 +74,44 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           onClick={() => !disabled && inputRef.current?.click()}
-          className={`minimal-dropzone rounded-lg p-6 flex flex-col items-center justify-center text-center cursor-pointer min-h-[190px] flex-1 ${
-            isDragging ? 'is-dragging' : ''
-          } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+          className={`h-48 border border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer transition-colors ${
+            isDragging
+              ? 'border-zinc-900 bg-zinc-50 text-zinc-900'
+              : 'border-zinc-300 hover:border-zinc-500 text-zinc-500 hover:text-zinc-800'
+          } ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
         >
-          <UploadCloud className="w-6 h-6 text-zinc-400 mb-2.5 stroke-[1.5]" />
-          <p className="text-xs font-medium text-zinc-800 mb-0.5">
-            Drop soundtrack here
-          </p>
-          <p className="text-[11px] text-zinc-400 mb-3">
-            or click to browse audio files
-          </p>
-          <span className="inline-flex items-center px-3 py-1 text-[11px] font-mono text-zinc-700 bg-zinc-100 hover:bg-zinc-200 rounded transition-colors">
-            Select file
-          </span>
+          <span className="font-mono text-xs">+ audio</span>
+          <span className="font-mono text-[10px] text-zinc-400 mt-1">drop or click</span>
         </div>
       ) : (
         <div
           id="audio-preview-container"
-          className="rounded-lg border border-zinc-100 bg-zinc-50 p-3 flex flex-col justify-between flex-1"
+          className="h-48 border border-zinc-200 rounded-lg p-3 flex flex-col justify-between"
         >
-          <div className="rounded-md border border-zinc-200/80 bg-white p-3 flex flex-col items-center justify-center h-[140px] mb-3">
-            <div className="flex items-center gap-1.5 mb-2.5 text-zinc-500 text-xs font-medium">
-              <Volume2 className="w-4 h-4 text-zinc-400" />
-              <span>Audio Preview</span>
-            </div>
+          <div className="flex-1 flex flex-col items-center justify-center text-center px-2">
+            <span className="font-mono text-xs text-zinc-900 font-medium truncate max-w-[200px] mb-3" title={audioFile.name}>
+              {audioFile.name.replace(/\.[^/.]+$/, '')}
+            </span>
             <audio
               id="audio-player-preview"
               controls
               src={audioFile.previewUrl}
-              className="w-full max-w-[240px] h-8"
+              className="w-full max-w-[210px] h-8"
             />
           </div>
 
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between text-[11px] font-mono bg-white px-2.5 py-1.5 rounded border border-zinc-200/60 text-zinc-700">
-              <span className="truncate max-w-[150px]" title={audioFile.name}>
-                {audioFile.name}
-              </span>
-              <span className="text-zinc-400 shrink-0">
-                {audioFile.duration !== undefined ? `${formatDuration(audioFile.duration)} · ` : ''}
-                {formatSize(audioFile.size)}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-end gap-1.5">
-              <button
-                id="btn-change-audio"
-                type="button"
-                onClick={() => !disabled && inputRef.current?.click()}
-                disabled={disabled}
-                className="px-2.5 py-1 text-[11px] font-mono font-medium text-zinc-700 hover:text-black bg-white hover:bg-zinc-100 border border-zinc-200 rounded transition-colors cursor-pointer"
-              >
-                Change
-              </button>
-              <button
-                id="btn-remove-audio"
-                type="button"
-                onClick={onAudioRemoved}
-                disabled={disabled}
-                className="px-2.5 py-1 text-[11px] font-mono font-medium text-red-600 hover:text-red-700 bg-white hover:bg-red-50 border border-zinc-200 rounded transition-colors cursor-pointer"
-              >
-                Remove
-              </button>
-            </div>
+          <div className="flex items-center justify-between font-mono text-[11px] text-zinc-400 pt-1 border-t border-zinc-100">
+            <span>audio ready</span>
+            <button
+              id="btn-remove-audio"
+              type="button"
+              onClick={onAudioRemoved}
+              disabled={disabled}
+              className="text-zinc-400 hover:text-red-500 cursor-pointer transition-colors ml-2"
+              title="Remove"
+            >
+              ✕
+            </button>
           </div>
         </div>
       )}
