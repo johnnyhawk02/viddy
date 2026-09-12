@@ -287,12 +287,13 @@ export function drawTwoPointBlend(
 ) {
   const [p1, p2] = config.points;
 
-  // Subtle sub-pixel focal drift: coordinates shift by ~0.05px per beat frame
+  // Subtle sub-pixel focal drift locked to the exact 64-beat harmonic cycle (periodicity 2*PI)
   const driftRadius = 2.0;
-  const drift1X = Math.cos(timeParam * 0.025) * driftRadius;
-  const drift1Y = Math.sin(timeParam * 0.025) * driftRadius;
-  const drift2X = Math.sin(timeParam * 0.025) * driftRadius;
-  const drift2Y = Math.cos(timeParam * 0.025) * driftRadius;
+  const cycle = (timeParam * 2 * Math.PI) / HARMONIC_CYCLE_BEATS;
+  const drift1X = Math.cos(cycle) * driftRadius;
+  const drift1Y = Math.sin(cycle) * driftRadius;
+  const drift2X = Math.sin(cycle) * driftRadius;
+  const drift2Y = Math.cos(cycle) * driftRadius;
 
   const p1x = p1.x + drift1X;
   const p1y = p1.y + drift1Y;
@@ -356,13 +357,13 @@ function drawDotFieldForColor(
   const cos = Math.cos(dots.angle);
   const sin = Math.sin(dots.angle);
 
-  // Sub-pixel positional micro-drift: smooth harmonic orbit
-  // In each beat frame, delta position is strictly sub-pixel (~0.12 - 0.22px)
+  // Sub-pixel positional micro-drift locked to the unified 64-beat harmonic cycle
+  // Delta displacement per beat frame is strictly sub-pixel (~0.12 - 0.22px)
   const driftRadius = 2.5;
-  const driftPhase = (timeParam * 2 * Math.PI) / 64;
+  const cycle = (timeParam * 2 * Math.PI) / HARMONIC_CYCLE_BEATS;
   const driftAngle = dots.angle + (colorSide === 1 ? 0 : Math.PI * 0.5);
-  const driftX = Math.cos(driftPhase) * driftRadius * Math.cos(driftAngle) - Math.sin(driftPhase) * driftRadius * Math.sin(driftAngle);
-  const driftY = Math.cos(driftPhase) * driftRadius * Math.sin(driftAngle) + Math.sin(driftPhase) * driftRadius * Math.cos(driftAngle);
+  const driftX = Math.cos(cycle) * driftRadius * Math.cos(driftAngle) - Math.sin(cycle) * driftRadius * Math.sin(driftAngle);
+  const driftY = Math.cos(cycle) * driftRadius * Math.sin(driftAngle) + Math.sin(cycle) * driftRadius * Math.cos(driftAngle);
 
   const maxExtent = Math.max(width, height) * 0.85;
   const step = dots.spacing;
@@ -401,7 +402,7 @@ function drawDotFieldForColor(
       if (weight <= 0.04) continue;
 
       // Optical illusion size modulation formula:
-      // Computes a perceptual scale factor based on mathematical interference / wave patterns with subtle slow time morphing
+      // Evaluates continuous harmonic wave with zero jump across any frame or loop boundary
       const scaleFactor = calculateIllusionScale(x, y, dots, timeParam);
 
       // Final dot radius with optical variation (clamped to prevent overlapping or disappearing dots)
@@ -419,9 +420,16 @@ function drawDotFieldForColor(
 }
 
 /**
+ * Exact harmonic cycle constant (64 beats = 16 bars of 4/4 musical phrasing).
+ * All trigonometric phases (2*PI) complete a full smooth rotation every 64 beats,
+ * ensuring frame 64 is mathematically identical to frame 0 with 0 discontinuity.
+ */
+export const HARMONIC_CYCLE_BEATS = 64;
+
+/**
  * Optical illusion formulas calculating dot radius modulation factor.
- * In animated mode, timeParam smoothly shifts wave phases and blends across morph cycles
- * while keeping amplitude changes very subtle, slow, and hypnotic.
+ * Purely continuous C-infinity wave functions locked to the 64-beat harmonic cycle.
+ * Step of 1 beat produces delta r <= 0.20px (sub-pixel precision).
  */
 function calculateIllusionScale(
   x: number,
@@ -438,90 +446,55 @@ function calculateIllusionScale(
   const freq = dots.illusionFrequency;
   const strength = dots.illusionStrength;
 
-  // Compute wave value for any given illusion type with continuous time shift
-  const evalFormula = (type: IllusionType, t: number): number => {
-    switch (type) {
-      case 'ripple': {
-        // Concentric wave slowly undulating inward/outward
-        return Math.sin(dist * freq * 1.5 - t * 1.8);
-      }
-      case 'vortex': {
-        // Spiral arm slowly rotating and breathing
-        const spiralPhase = dist * freq * 1.2 - angle * 3 - t * 1.2;
-        return Math.sin(spiralPhase);
-      }
-      case 'tunnel': {
-        // Logarithmic depth tunnel breathing
-        const tunnelPhase = Math.log(Math.max(1, dist)) * 5.2 * (freq / 0.01) - t * 1.5;
-        return Math.sin(tunnelPhase);
-      }
-      case 'interference': {
-        // Moire grid interference wave planes slowly shifting against each other
-        const wave1 = Math.sin((x * 0.707 + y * 0.707) * freq * 1.4 + t * 0.9);
-        const wave2 = Math.sin((x * 0.707 - y * 0.707) * freq * 1.4 - t * 0.9);
-        return wave1 * wave2;
-      }
-      case 'bulge': {
-        // Gravitational lens / sphere breathing slowly in focal radius
-        const sphereRadius = 450 + Math.sin(t * 1.1) * 80;
-        if (dist < sphereRadius) {
-          const norm = dist / sphereRadius;
-          return Math.cos((norm * Math.PI) / 2) * 1.4;
-        } else {
-          return -0.35 * Math.sin(dist * freq * 0.8 + t * 0.7);
-        }
-      }
-      case 'wavy-lattice':
-      default: {
-        // Standing wave liquid sheet undulating
-        const waveX = Math.sin(x * freq * 1.2 + t * 0.8);
-        const waveY = Math.cos(y * freq * 1.2 - t * 0.8);
-        return (waveX + waveY) * 0.65;
-      }
-    }
-  };
+  // Exact harmonic cycle phase in radians [0, 2*PI)
+  const cycle = (timeParam * 2 * Math.PI) / HARMONIC_CYCLE_BEATS;
 
   let wave = 0;
-
-  if (timeParam === 0) {
-    // Static mode: evaluate current chosen illusion
-    wave = evalFormula(dots.illusion, 0);
-  } else {
-    // Animated mode:
-    // Continuous smooth morph across all 6 illusion formulas in an infinite loop
-    const illusionSequence: IllusionType[] = [
-      'ripple',
-      'vortex',
-      'tunnel',
-      'interference',
-      'bulge',
-      'wavy-lattice',
-    ];
-
-    // Find starting offset based on the current assigned illusion
-    const startIndex = Math.max(0, illusionSequence.indexOf(dots.illusion));
-
-    // Sub-pixel time scaling: step of 1 beat produces delta r <= 0.25px (almost sub-pixel)
-    const t = timeParam * 0.020;
-
-    // A full morph cycle between two formulas takes 128 beats (ultra gradual sub-pixel blend)
-    const morphCycleDuration = 128;
-    const progress = (timeParam / morphCycleDuration) + startIndex;
-    const fromIndex = Math.floor(progress) % illusionSequence.length;
-    const toIndex = (fromIndex + 1) % illusionSequence.length;
-    const blendFactor = progress - Math.floor(progress); // 0 to 1
-
-    // Smooth cosine interpolation to avoid abrupt edges
-    const smoothBlend = 0.5 - 0.5 * Math.cos(blendFactor * Math.PI);
-
-    const waveA = evalFormula(illusionSequence[fromIndex], t);
-    const waveB = evalFormula(illusionSequence[toIndex], t);
-
-    wave = waveA * (1 - smoothBlend) + waveB * smoothBlend;
+  switch (dots.illusion) {
+    case 'ripple': {
+      // Concentric circular waves rippling inward/outward smoothly
+      wave = Math.sin(dist * freq * 1.5 - cycle);
+      break;
+    }
+    case 'vortex': {
+      // Archimedean spiral arms rotating smoothly
+      // Integer multiplier (angle * 2) wraps by 4*PI across [-PI, PI], zero branch-cut jump
+      wave = Math.sin(dist * freq * 1.2 - angle * 2 - cycle);
+      break;
+    }
+    case 'tunnel': {
+      // Perspective depth tunnel breathing smoothly
+      const tunnelPhase = Math.log(Math.max(1, dist)) * 5.2 * (freq / 0.01) - cycle;
+      wave = Math.sin(tunnelPhase);
+      break;
+    }
+    case 'interference': {
+      // Dual sliding Moire wave planes moving along orthogonal vectors
+      const wave1 = Math.sin((x * 0.707 + y * 0.707) * freq * 1.4 + cycle);
+      const wave2 = Math.sin((x * 0.707 - y * 0.707) * freq * 1.4 - cycle);
+      wave = wave1 * wave2;
+      break;
+    }
+    case 'bulge': {
+      // Seamless Gaussian optical lens breathing smoothly with zero step discontinuity
+      const r = 420;
+      const lensBell = Math.exp(-Math.pow(dist / r, 2) * 1.8);
+      const breath = 1.2 + 0.3 * Math.cos(cycle);
+      const rippleRing = -0.3 * Math.sin(dist * freq + cycle);
+      wave = lensBell * breath + rippleRing;
+      break;
+    }
+    case 'wavy-lattice':
+    default: {
+      // Standing wave sheet undulating smoothly
+      const waveX = Math.sin(x * freq * 1.2 + cycle);
+      const waveY = Math.cos(y * freq * 1.2 - cycle);
+      wave = (waveX + waveY) * 0.65;
+      break;
+    }
   }
 
   // Base scale is 1.0; modulated by strength * wave
-  // Returns value typically within [0.28, 1.85]
   return Math.max(0.25, 1.0 + wave * strength);
 }
 

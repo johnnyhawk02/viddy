@@ -1,6 +1,6 @@
 import { LogEntry, RenderProgress, VideoOutput } from '../types';
 import { initFFmpeg } from './ffmpeg';
-import { BlendConfig, renderCoverFrame } from './generateCover';
+import { BlendConfig, renderCoverFrame, HARMONIC_CYCLE_BEATS } from './generateCover';
 
 /**
  * Encodes an animated video by generating 1 frame every beat synchronized to the tempo (BPM).
@@ -114,18 +114,24 @@ async function renderBeatFramesToFFmpeg(
   const fpsStr = `${bpm}/60`;
   const fpsNumeric = bpm / 60;
   const totalAudioBeats = Math.max(2, Math.ceil(audioDuration * fpsNumeric));
-  // 64 beats = 16 bars of 4/4 musical phrasing (or totalAudioBeats if track is shorter)
-  const loopBeats = Math.min(64, totalAudioBeats);
+  
+  // For audio tracks up to 384 beats (~3.2 minutes at 120 BPM),
+  // render all beat frames directly for 100% linear playback with zero looping or PTS jumps.
+  // For longer tracks, render an exact 64-beat harmonic cycle (HARMONIC_CYCLE_BEATS).
+  const isDirectLinear = totalAudioBeats <= 384;
+  const framesToRender = isDirectLinear ? totalAudioBeats : HARMONIC_CYCLE_BEATS;
 
   onLog({
     id: Math.random().toString(36).substring(2, 9),
     type: 'info',
-    message: `Rendering ${loopBeats} beat frames (1 frame/beat @ ${bpm} BPM, almost sub-pixel changes between frames)...`,
+    message: isDirectLinear
+      ? `Rendering all ${framesToRender} beat frames (${audioDuration.toFixed(1)}s audio @ ${bpm} BPM, 1 frame/beat)...`
+      : `Rendering ${framesToRender} beat frames for seamless 64-beat harmonic cycle (${bpm} BPM)...`,
     timestamp: new Date().toLocaleTimeString([], { hour12: false }),
   });
 
-  for (let b = 0; b < loopBeats; b++) {
-    // Optical morphing advances on each beat with almost sub-pixel precision
+  for (let b = 0; b < framesToRender; b++) {
+    // Optical animation advances on each beat with sub-pixel harmonic precision
     renderCoverFrame(ctx, canvas.width, canvas.height, audioFile.name, blendConfig, b);
 
     const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/jpeg', 0.90));
@@ -135,70 +141,66 @@ async function renderBeatFramesToFFmpeg(
       await ffmpeg.writeFile(frameName, bytes);
     }
 
-    const pct = Math.round((b / loopBeats) * 50);
-    onProgress({ ratio: b / loopBeats * 0.5, percentage: pct });
+    const pct = Math.round((b / framesToRender) * 60);
+    onProgress({ ratio: (b / framesToRender) * 0.6, percentage: pct });
   }
 
-  onProgress({ ratio: 0.55, percentage: 55 });
+  onProgress({ ratio: 0.65, percentage: 65 });
 
-  onLog({
-    id: Math.random().toString(36).substring(2, 9),
-    type: 'info',
-    message: `Compiling loop video at ${fpsNumeric.toFixed(2)} fps (${bpm} BPM)...`,
-    timestamp: new Date().toLocaleTimeString([], { hour12: false }),
-  });
-
-  // Clean up any stale loop.mp4 or output.mp4
+  // Clean up any stale output.mp4 or loop.mp4
   try { await ffmpeg.deleteFile('loop.mp4'); } catch {}
   try { await ffmpeg.deleteFile('output.mp4'); } catch {}
 
-  // 1. Compile beat frames into loop.mp4 at exact framerate bpm/60 (1 frame per beat)
-  await ffmpeg.exec([
-    '-framerate', fpsStr,
-    '-i', 'frame_%04d.jpg',
-    '-c:v', 'libx264',
-    '-preset', 'ultrafast',
-    '-pix_fmt', 'yuv420p',
-    '-r', fpsStr,
-    'loop.mp4'
-  ]);
+  if (isDirectLinear) {
+    onLog({
+      id: Math.random().toString(36).substring(2, 9),
+      type: 'info',
+      message: `Compiling full continuous video directly with audio (${fpsNumeric.toFixed(2)} fps, zero stream loop)...`,
+      timestamp: new Date().toLocaleTimeString([], { hour12: false }),
+    });
 
-  // Clean up individual frame JPEGs to free virtual FS memory
-  for (let b = 0; b < loopBeats; b++) {
-    try {
-      await ffmpeg.deleteFile(`frame_${String(b).padStart(4, '0')}.jpg`);
-    } catch {}
-  }
-
-  onProgress({ ratio: 0.75, percentage: 75 });
-
-  onLog({
-    id: Math.random().toString(36).substring(2, 9),
-    type: 'info',
-    message: `Muxing beat video with audio across full duration (${audioDuration.toFixed(1)}s)...`,
-    timestamp: new Date().toLocaleTimeString([], { hour12: false }),
-  });
-
-  // 2. Mux loop.mp4 with audio using `-stream_loop -1` and `-shortest`
-  // This guarantees that the 1-frame-per-beat video loops continuously for the full audio length!
-  let muxSuccess = false;
-  try {
+    // Single-pass direct linear encode: 1 frame per beat matched precisely to audio
     await ffmpeg.exec([
-      '-stream_loop', '-1',
-      '-i', 'loop.mp4',
+      '-framerate', fpsStr,
+      '-i', 'frame_%04d.jpg',
       '-i', audioInFile,
-      '-c:v', 'copy',
+      '-c:v', 'libx264',
+      '-preset', 'ultrafast',
+      '-pix_fmt', 'yuv420p',
       '-c:a', 'aac',
       '-b:a', '192k',
       '-shortest',
       'output.mp4'
     ]);
-    muxSuccess = true;
-  } catch (copyErr) {
-    console.warn('Stream copy failed, falling back to ultrafast re-encode:', copyErr);
-  }
+  } else {
+    onLog({
+      id: Math.random().toString(36).substring(2, 9),
+      type: 'info',
+      message: `Compiling seamless 64-beat loop at ${fpsNumeric.toFixed(2)} fps...`,
+      timestamp: new Date().toLocaleTimeString([], { hour12: false }),
+    });
 
-  if (!muxSuccess) {
+    // 1. Compile 64-beat cycle into loop.mp4
+    await ffmpeg.exec([
+      '-framerate', fpsStr,
+      '-i', 'frame_%04d.jpg',
+      '-c:v', 'libx264',
+      '-preset', 'ultrafast',
+      '-g', String(HARMONIC_CYCLE_BEATS),
+      '-keyint_min', String(HARMONIC_CYCLE_BEATS),
+      '-pix_fmt', 'yuv420p',
+      '-r', fpsStr,
+      'loop.mp4'
+    ]);
+
+    onLog({
+      id: Math.random().toString(36).substring(2, 9),
+      type: 'info',
+      message: `Muxing seamless loop with audio across full duration (${audioDuration.toFixed(1)}s)...`,
+      timestamp: new Date().toLocaleTimeString([], { hour12: false }),
+    });
+
+    // 2. Mux with audio using re-encode to preserve strict monotonic presentation timestamps
     await ffmpeg.exec([
       '-stream_loop', '-1',
       '-i', 'loop.mp4',
@@ -207,11 +209,17 @@ async function renderBeatFramesToFFmpeg(
       '-preset', 'ultrafast',
       '-c:a', 'aac',
       '-b:a', '192k',
-      '-r', fpsStr,
       '-shortest',
       '-pix_fmt', 'yuv420p',
       'output.mp4'
     ]);
+  }
+
+  // Clean up individual frame JPEGs to free virtual FS memory
+  for (let b = 0; b < framesToRender; b++) {
+    try {
+      await ffmpeg.deleteFile(`frame_${String(b).padStart(4, '0')}.jpg`);
+    } catch {}
   }
 
   const outputData = await ffmpeg.readFile('output.mp4');
