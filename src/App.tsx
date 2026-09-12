@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { FFmpegStatus, MediaFile, RenderProgress, InitProgress, LogEntry, VideoOutput } from './types';
 import { initFFmpeg, convertImageAndAudioToVideo } from './utils/ffmpeg';
-import { getRandomColor, generateCoverImage } from './utils/generateCover';
+import { getRandomBlendConfig, generateCoverImage, BlendConfig } from './utils/generateCover';
 import { ImageUploader } from './components/ImageUploader';
 import { AudioUploader } from './components/AudioUploader';
 import { OutputSection } from './components/OutputSection';
@@ -14,7 +14,7 @@ export default function App() {
 
   const [imageFile, setImageFile] = useState<MediaFile | null>(null);
   const [audioFile, setAudioFile] = useState<MediaFile | null>(null);
-  const [autoColor, setAutoColor] = useState<string>(() => getRandomColor());
+  const [blendConfig, setBlendConfig] = useState<BlendConfig>(() => getRandomBlendConfig());
   const [autoCoverUrl, setAutoCoverUrl] = useState<string | null>(null);
   const [videoOutput, setVideoOutput] = useState<VideoOutput | null>(null);
 
@@ -22,7 +22,7 @@ export default function App() {
   useEffect(() => {
     let active = true;
     if (audioFile && !imageFile) {
-      generateCoverImage(audioFile.name, autoColor).then((file) => {
+      generateCoverImage(audioFile.name, blendConfig).then((file) => {
         if (!active) return;
         const url = URL.createObjectURL(file);
         setAutoCoverUrl((prev) => {
@@ -40,10 +40,10 @@ export default function App() {
     return () => {
       active = false;
     };
-  }, [audioFile, autoColor, imageFile]);
+  }, [audioFile, blendConfig, imageFile]);
 
   const handleShuffleColor = () => {
-    setAutoColor(getRandomColor());
+    setBlendConfig(getRandomBlendConfig());
   };
 
   // Pipe all logs to dev console for local AI Studio inspection
@@ -159,7 +159,7 @@ export default function App() {
     try {
       const finalImageFile = imageFile
         ? imageFile.file
-        : await generateCoverImage(audioFile.name, autoColor);
+        : await generateCoverImage(audioFile.name, blendConfig);
 
       const result = await convertImageAndAudioToVideo(
         finalImageFile,

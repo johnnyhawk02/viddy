@@ -99,14 +99,14 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
             />
           </div>
           <div className="flex items-center justify-between font-mono text-[11px] text-zinc-400 pt-1 border-t border-zinc-100">
-            <span className="text-zinc-500">auto color</span>
+            <span className="text-zinc-500">blend + dots</span>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={onShuffleColor}
                 disabled={disabled}
                 className="hover:text-zinc-900 cursor-pointer transition-colors"
-                title="Shuffle color"
+                title="Shuffle blend & polka dots"
               >
                 shuffle
               </button>
@@ -136,7 +136,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
           } ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
         >
           <span className="font-mono text-xs">+ image (optional)</span>
-          <span className="font-mono text-[10px] text-zinc-400 mt-1">or auto color</span>
+          <span className="font-mono text-[10px] text-zinc-400 mt-1">or auto blend + polka dots</span>
         </div>
       )}
     </div>
