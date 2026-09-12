@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { FFmpegStatus, MediaFile, RenderProgress, InitProgress, LogEntry, VideoOutput } from './types';
 import { initFFmpeg, convertImageAndAudioToVideo } from './utils/ffmpeg';
+import { convertAnimatedCanvasAndAudioToVideo } from './utils/animatedVideo';
 import { getRandomBlendConfig, generateCoverImage, BlendConfig } from './utils/generateCover';
 import { ImageUploader } from './components/ImageUploader';
 import { AudioUploader } from './components/AudioUploader';
@@ -17,12 +18,15 @@ export default function App() {
   const [blendConfig, setBlendConfig] = useState<BlendConfig>(() => getRandomBlendConfig());
   const [autoCoverUrl, setAutoCoverUrl] = useState<string | null>(null);
   const [videoOutput, setVideoOutput] = useState<VideoOutput | null>(null);
+  const [isAnimatedCover, setIsAnimatedCover] = useState<boolean>(true);
+  const [tempo, setTempo] = useState<number>(120);
 
-  // Generate and update auto cover whenever audio is selected without a custom image
+  // Generate and update auto cover whenever a custom image is NOT uploaded
   useEffect(() => {
     let active = true;
-    if (audioFile && !imageFile) {
-      generateCoverImage(audioFile.name, blendConfig).then((file) => {
+    if (!imageFile) {
+      const trackTitle = audioFile ? audioFile.name : 'Sample Track';
+      generateCoverImage(trackTitle, blendConfig).then((file) => {
         if (!active) return;
         const url = URL.createObjectURL(file);
         setAutoCoverUrl((prev) => {
@@ -114,32 +118,71 @@ export default function App() {
     setImageFile(null);
   };
 
+  const handleAudioDurationDetected = (duration: number) => {
+    if (duration && !isNaN(duration) && isFinite(duration) && duration > 0) {
+      setAudioFile((prev) => (prev ? { ...prev, duration } : null));
+    }
+  };
+
   const handleAudioSelected = (file: File) => {
     if (audioFile?.previewUrl) {
       URL.revokeObjectURL(audioFile.previewUrl);
     }
     const previewUrl = URL.createObjectURL(file);
     const audio = new Audio();
-    audio.onloadedmetadata = () => {
-      setAudioFile({
-        file,
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        previewUrl,
-        duration: audio.duration,
+    audio.preload = 'auto';
+
+    const setInfo = (dur?: number) => {
+      setAudioFile((prev) => {
+        const finalDur = (dur && !isNaN(dur) && isFinite(dur) && dur > 0) ? dur : prev?.duration;
+        return {
+          file,
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          previewUrl,
+          duration: finalDur,
+        };
       });
+    };
+
+    audio.onloadedmetadata = () => {
+      const dur = audio.duration;
+      if (dur === Infinity) {
+        audio.currentTime = 1e101;
+        audio.ontimeupdate = () => {
+          audio.ontimeupdate = null;
+          audio.currentTime = 0;
+          setInfo(audio.duration);
+        };
+      } else {
+        setInfo(dur);
+      }
+    };
+    audio.ondurationchange = () => {
+      setInfo(audio.duration);
     };
     audio.onerror = () => {
-      setAudioFile({
-        file,
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        previewUrl,
-      });
+      setInfo();
     };
     audio.src = previewUrl;
+    audio.load();
+
+    // Fallback: AudioContext decodeAudioData
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtx) {
+        const actx = new AudioCtx();
+        file.arrayBuffer().then((buf) => {
+          actx.decodeAudioData(buf).then((decoded) => {
+            if (decoded && decoded.duration > 0) {
+              setInfo(decoded.duration);
+            }
+            actx.close().catch(() => {});
+          }).catch(() => actx.close().catch(() => {}));
+        }).catch(() => {});
+      }
+    } catch {}
   };
 
   const handleAudioRemoved = () => {
@@ -157,17 +200,32 @@ export default function App() {
     setProgress({ ratio: 0, percentage: 0 });
 
     try {
-      const finalImageFile = imageFile
-        ? imageFile.file
-        : await generateCoverImage(audioFile.name, blendConfig);
+      let result: VideoOutput;
 
-      const result = await convertImageAndAudioToVideo(
-        finalImageFile,
-        audioFile.file,
-        handleLog,
-        (p) => setProgress(p),
-        1
-      );
+      if (!imageFile && isAnimatedCover) {
+        // Animated Op Art morphing video @ 1 frame every beat (tempo BPM) for full audio duration
+        result = await convertAnimatedCanvasAndAudioToVideo(
+          audioFile.file,
+          blendConfig,
+          handleLog,
+          (p) => setProgress(p),
+          audioFile.duration,
+          tempo
+        );
+      } else {
+        // Still cover video @ 1 frame every beat
+        const finalImageFile = imageFile
+          ? imageFile.file
+          : await generateCoverImage(audioFile.name, blendConfig);
+
+        result = await convertImageAndAudioToVideo(
+          finalImageFile,
+          audioFile.file,
+          handleLog,
+          (p) => setProgress(p),
+          tempo / 60
+        );
+      }
 
       setVideoOutput(result);
       setEngineStatus('done');
@@ -221,6 +279,11 @@ export default function App() {
         <ImageUploader
           imageFile={imageFile}
           autoCoverUrl={autoCoverUrl}
+          blendConfig={blendConfig}
+          trackName={audioFile?.name}
+          isAnimatedCover={isAnimatedCover}
+          tempo={tempo}
+          onToggleAnimatedCover={() => setIsAnimatedCover((prev) => !prev)}
           onShuffleColor={handleShuffleColor}
           onImageSelected={handleImageSelected}
           onImageRemoved={handleImageRemoved}
@@ -230,8 +293,62 @@ export default function App() {
           audioFile={audioFile}
           onAudioSelected={handleAudioSelected}
           onAudioRemoved={handleAudioRemoved}
+          onDurationDetected={handleAudioDurationDetected}
           disabled={engineStatus === 'encoding'}
         />
+      </div>
+
+      {/* Tempo Slider (70 - 200 BPM) */}
+      <div id="tempo-control-card" className="mb-4 p-3 border border-zinc-200 rounded-lg bg-white">
+        <div className="flex items-center justify-between font-mono text-xs mb-2">
+          <div className="flex items-center gap-2">
+            <span className="text-zinc-500 font-medium">tempo</span>
+            <span className="bg-zinc-900 text-white px-2 py-0.5 rounded text-[11px] font-semibold tracking-wide">
+              {tempo} BPM
+            </span>
+          </div>
+          <div className="text-zinc-500 text-[11px]">
+            1 frame/beat · {(tempo / 60).toFixed(2)} fps · sub-pixel
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-[10px] text-zinc-400 select-none">70</span>
+          <input
+            id="tempo-slider"
+            type="range"
+            min={70}
+            max={200}
+            step={1}
+            value={tempo}
+            onChange={(e) => setTempo(Number(e.target.value))}
+            disabled={engineStatus === 'encoding'}
+            className="flex-1 accent-zinc-900 h-1.5 bg-zinc-100 rounded-lg cursor-pointer transition-all"
+          />
+          <span className="font-mono text-[10px] text-zinc-400 select-none">200</span>
+        </div>
+
+        {/* Quick presets for swift tempo selection */}
+        <div className="flex items-center justify-between mt-2 pt-2 border-t border-zinc-100 font-mono text-[10px]">
+          <span className="text-zinc-400">presets</span>
+          <div className="flex items-center gap-1.5">
+            {[80, 100, 120, 140, 174].map((presetBpm) => (
+              <button
+                key={presetBpm}
+                type="button"
+                onClick={() => setTempo(presetBpm)}
+                disabled={engineStatus === 'encoding'}
+                className={`px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
+                  tempo === presetBpm
+                    ? 'bg-zinc-900 text-white font-medium'
+                    : 'text-zinc-500 hover:bg-zinc-100'
+                }`}
+              >
+                {presetBpm}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Progress during encoding */}

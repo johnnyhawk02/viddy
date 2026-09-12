@@ -282,19 +282,32 @@ export function drawTwoPointBlend(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
-  config: BlendConfig
+  config: BlendConfig,
+  timeParam = 0
 ) {
   const [p1, p2] = config.points;
 
+  // Subtle sub-pixel focal drift: coordinates shift by ~0.05px per beat frame
+  const driftRadius = 2.0;
+  const drift1X = Math.cos(timeParam * 0.025) * driftRadius;
+  const drift1Y = Math.sin(timeParam * 0.025) * driftRadius;
+  const drift2X = Math.sin(timeParam * 0.025) * driftRadius;
+  const drift2Y = Math.cos(timeParam * 0.025) * driftRadius;
+
+  const p1x = p1.x + drift1X;
+  const p1y = p1.y + drift1Y;
+  const p2x = p2.x + drift2X;
+  const p2y = p2.y + drift2Y;
+
   // 1. Direct smooth linear gradient between the two focal points
-  const linear = ctx.createLinearGradient(p1.x, p1.y, p2.x, p2.y);
+  const linear = ctx.createLinearGradient(p1x, p1y, p2x, p2y);
   linear.addColorStop(0, rgbToString(p1.color, 1));
   linear.addColorStop(1, rgbToString(p2.color, 1));
   ctx.fillStyle = linear;
   ctx.fillRect(0, 0, width, height);
 
   // 2. Radial bloom for Point 2 to give rich organic depth
-  const rad2 = ctx.createRadialGradient(p2.x, p2.y, 0, p2.x, p2.y, p2.radius);
+  const rad2 = ctx.createRadialGradient(p2x, p2y, 0, p2x, p2y, p2.radius);
   rad2.addColorStop(0, rgbToString(p2.color, 1));
   rad2.addColorStop(0.5, rgbToString(p2.color, 0.7));
   rad2.addColorStop(1, rgbToString(p2.color, 0));
@@ -302,7 +315,7 @@ export function drawTwoPointBlend(
   ctx.fillRect(0, 0, width, height);
 
   // 3. Radial bloom for Point 1
-  const rad1 = ctx.createRadialGradient(p1.x, p1.y, 0, p1.x, p1.y, p1.radius);
+  const rad1 = ctx.createRadialGradient(p1x, p1y, 0, p1x, p1y, p1.radius);
   rad1.addColorStop(0, rgbToString(p1.color, 0.95));
   rad1.addColorStop(0.55, rgbToString(p1.color, 0.5));
   rad1.addColorStop(1, rgbToString(p1.color, 0));
@@ -314,10 +327,11 @@ export function drawPolkaDotOverlay(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
-  config: BlendConfig
+  config: BlendConfig,
+  timeParam = 0
 ) {
-  drawDotFieldForColor(ctx, width, height, config, 1);
-  drawDotFieldForColor(ctx, width, height, config, 2);
+  drawDotFieldForColor(ctx, width, height, config, 1, timeParam);
+  drawDotFieldForColor(ctx, width, height, config, 2, timeParam);
 }
 
 function drawDotFieldForColor(
@@ -325,7 +339,8 @@ function drawDotFieldForColor(
   width: number,
   height: number,
   config: BlendConfig,
-  colorSide: 1 | 2
+  colorSide: 1 | 2,
+  timeParam = 0
 ) {
   const p1 = config.points[0];
   const p2 = config.points[1];
@@ -341,6 +356,14 @@ function drawDotFieldForColor(
   const cos = Math.cos(dots.angle);
   const sin = Math.sin(dots.angle);
 
+  // Sub-pixel positional micro-drift: smooth harmonic orbit
+  // In each beat frame, delta position is strictly sub-pixel (~0.12 - 0.22px)
+  const driftRadius = 2.5;
+  const driftPhase = (timeParam * 2 * Math.PI) / 64;
+  const driftAngle = dots.angle + (colorSide === 1 ? 0 : Math.PI * 0.5);
+  const driftX = Math.cos(driftPhase) * driftRadius * Math.cos(driftAngle) - Math.sin(driftPhase) * driftRadius * Math.sin(driftAngle);
+  const driftY = Math.cos(driftPhase) * driftRadius * Math.sin(driftAngle) + Math.sin(driftPhase) * driftRadius * Math.cos(driftAngle);
+
   const maxExtent = Math.max(width, height) * 0.85;
   const step = dots.spacing;
 
@@ -354,8 +377,9 @@ function drawDotFieldForColor(
       const jx = dots.jitter > 0 ? Math.sin(baseU * 12.9898 + v * 78.233) * dots.jitter : 0;
       const jy = dots.jitter > 0 ? Math.cos(baseU * 39.346 + v * 11.135) * dots.jitter : 0;
 
-      const x = centerX + (baseU + jx) * cos - (v + jy) * sin;
-      const y = centerY + (baseU + jx) * sin + (v + jy) * cos;
+      // Coordinate rendered with floating-point sub-pixel anti-aliasing on canvas
+      const x = centerX + (baseU + jx) * cos - (v + jy) * sin + driftX;
+      const y = centerY + (baseU + jx) * sin + (v + jy) * cos + driftY;
 
       if (x < -dots.radius || x > width + dots.radius || y < -dots.radius || y > height + dots.radius) {
         continue;
@@ -377,8 +401,8 @@ function drawDotFieldForColor(
       if (weight <= 0.04) continue;
 
       // Optical illusion size modulation formula:
-      // Computes a perceptual scale factor based on mathematical interference / wave patterns
-      const scaleFactor = calculateIllusionScale(x, y, dots);
+      // Computes a perceptual scale factor based on mathematical interference / wave patterns with subtle slow time morphing
+      const scaleFactor = calculateIllusionScale(x, y, dots, timeParam);
 
       // Final dot radius with optical variation (clamped to prevent overlapping or disappearing dots)
       const maxRadius = (dots.spacing / 2) * 0.92;
@@ -396,15 +420,15 @@ function drawDotFieldForColor(
 
 /**
  * Optical illusion formulas calculating dot radius modulation factor.
- * Returns scale multiplier roughly between 0.25 and 1.85 to create startling visual distortions:
- * - 'ripple': Bulging 3D water droplet concentric interference
- * - 'vortex': Spiral kinetic spin illusion
- * - 'tunnel': 3D hyper-depth vanishing point warp
- * - 'interference': Moire floating wave grids
- * - 'bulge': Fish-eye gravitational lens / sphere distortion
- * - 'wavy-lattice': Oscillating liquid surface undulation
+ * In animated mode, timeParam smoothly shifts wave phases and blends across morph cycles
+ * while keeping amplitude changes very subtle, slow, and hypnotic.
  */
-function calculateIllusionScale(x: number, y: number, dots: PolkaDotPattern): number {
+function calculateIllusionScale(
+  x: number,
+  y: number,
+  dots: PolkaDotPattern,
+  timeParam = 0
+): number {
   const cx = dots.illusionCenter.x;
   const cy = dots.illusionCenter.y;
   const dx = x - cx;
@@ -414,58 +438,160 @@ function calculateIllusionScale(x: number, y: number, dots: PolkaDotPattern): nu
   const freq = dots.illusionFrequency;
   const strength = dots.illusionStrength;
 
+  // Compute wave value for any given illusion type with continuous time shift
+  const evalFormula = (type: IllusionType, t: number): number => {
+    switch (type) {
+      case 'ripple': {
+        // Concentric wave slowly undulating inward/outward
+        return Math.sin(dist * freq * 1.5 - t * 1.8);
+      }
+      case 'vortex': {
+        // Spiral arm slowly rotating and breathing
+        const spiralPhase = dist * freq * 1.2 - angle * 3 - t * 1.2;
+        return Math.sin(spiralPhase);
+      }
+      case 'tunnel': {
+        // Logarithmic depth tunnel breathing
+        const tunnelPhase = Math.log(Math.max(1, dist)) * 5.2 * (freq / 0.01) - t * 1.5;
+        return Math.sin(tunnelPhase);
+      }
+      case 'interference': {
+        // Moire grid interference wave planes slowly shifting against each other
+        const wave1 = Math.sin((x * 0.707 + y * 0.707) * freq * 1.4 + t * 0.9);
+        const wave2 = Math.sin((x * 0.707 - y * 0.707) * freq * 1.4 - t * 0.9);
+        return wave1 * wave2;
+      }
+      case 'bulge': {
+        // Gravitational lens / sphere breathing slowly in focal radius
+        const sphereRadius = 450 + Math.sin(t * 1.1) * 80;
+        if (dist < sphereRadius) {
+          const norm = dist / sphereRadius;
+          return Math.cos((norm * Math.PI) / 2) * 1.4;
+        } else {
+          return -0.35 * Math.sin(dist * freq * 0.8 + t * 0.7);
+        }
+      }
+      case 'wavy-lattice':
+      default: {
+        // Standing wave liquid sheet undulating
+        const waveX = Math.sin(x * freq * 1.2 + t * 0.8);
+        const waveY = Math.cos(y * freq * 1.2 - t * 0.8);
+        return (waveX + waveY) * 0.65;
+      }
+    }
+  };
+
   let wave = 0;
 
-  switch (dots.illusion) {
-    case 'ripple': {
-      // Concentric sinusoidal rings giving a 3D spherical drop / undulating liquid depth
-      wave = Math.sin(dist * freq * 1.5);
-      break;
-    }
-    case 'vortex': {
-      // Archimedean / logarithmic spiral arm: radius varies with spiral phase causing spin illusion
-      const spiralPhase = dist * freq * 1.2 - angle * 3;
-      wave = Math.sin(spiralPhase);
-      break;
-    }
-    case 'tunnel': {
-      // Inverse logarithmic depth compression: dots grow then compress rapidly toward a vanishing center
-      const tunnelPhase = Math.log(Math.max(1, dist)) * 5.2 * (freq / 0.01);
-      wave = Math.sin(tunnelPhase);
-      break;
-    }
-    case 'interference': {
-      // Crossed high-frequency wave planes generating Moire beat patterns & phantom floating bands
-      const wave1 = Math.sin((x * 0.707 + y * 0.707) * freq * 1.4);
-      const wave2 = Math.sin((x * 0.707 - y * 0.707) * freq * 1.4);
-      wave = wave1 * wave2;
-      break;
-    }
-    case 'bulge': {
-      // Fish-eye lens magnification: exponential bell curve bulging the surface outward in 3D
-      const sphereRadius = 450;
-      if (dist < sphereRadius) {
-        const norm = dist / sphereRadius;
-        // Cosine dome curve
-        wave = Math.cos((norm * Math.PI) / 2) * 1.4;
-      } else {
-        wave = -0.35 * Math.sin(dist * freq * 0.8);
-      }
-      break;
-    }
-    case 'wavy-lattice':
-    default: {
-      // Orthogonal sine grid creating shifting ripple hills and troughs
-      const waveX = Math.sin(x * freq * 1.2);
-      const waveY = Math.cos(y * freq * 1.2);
-      wave = (waveX + waveY) * 0.65;
-      break;
-    }
+  if (timeParam === 0) {
+    // Static mode: evaluate current chosen illusion
+    wave = evalFormula(dots.illusion, 0);
+  } else {
+    // Animated mode:
+    // Continuous smooth morph across all 6 illusion formulas in an infinite loop
+    const illusionSequence: IllusionType[] = [
+      'ripple',
+      'vortex',
+      'tunnel',
+      'interference',
+      'bulge',
+      'wavy-lattice',
+    ];
+
+    // Find starting offset based on the current assigned illusion
+    const startIndex = Math.max(0, illusionSequence.indexOf(dots.illusion));
+
+    // Sub-pixel time scaling: step of 1 beat produces delta r <= 0.25px (almost sub-pixel)
+    const t = timeParam * 0.020;
+
+    // A full morph cycle between two formulas takes 128 beats (ultra gradual sub-pixel blend)
+    const morphCycleDuration = 128;
+    const progress = (timeParam / morphCycleDuration) + startIndex;
+    const fromIndex = Math.floor(progress) % illusionSequence.length;
+    const toIndex = (fromIndex + 1) % illusionSequence.length;
+    const blendFactor = progress - Math.floor(progress); // 0 to 1
+
+    // Smooth cosine interpolation to avoid abrupt edges
+    const smoothBlend = 0.5 - 0.5 * Math.cos(blendFactor * Math.PI);
+
+    const waveA = evalFormula(illusionSequence[fromIndex], t);
+    const waveB = evalFormula(illusionSequence[toIndex], t);
+
+    wave = waveA * (1 - smoothBlend) + waveB * smoothBlend;
   }
 
   // Base scale is 1.0; modulated by strength * wave
   // Returns value typically within [0.28, 1.85]
   return Math.max(0.25, 1.0 + wave * strength);
+}
+
+/**
+ * Reusable full frame renderer for either animated loop or static cover.
+ * Draws directly into the provided canvas context with zero allocations.
+ */
+export function renderCoverFrame(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  trackName: string,
+  blendConfig: BlendConfig,
+  timeParam = 0
+) {
+  // 1. Draw 2-point blend background with sub-pixel focal shift
+  drawTwoPointBlend(ctx, width, height, blendConfig, timeParam);
+
+  // 2. Draw polka dot optical illusion overlay (with time parameter for morphing)
+  drawPolkaDotOverlay(ctx, width, height, blendConfig, timeParam);
+
+  // 3. Draw clean track title typography
+  const cleanName = trackName.replace(/\.[^/.]+$/, '').trim() || 'Untitled Track';
+  const maxLineWidth = width * 0.72;
+  const fontSize = Math.round(width * 0.03); // Scaled proportionally (e.g., ~29px on 960px canvas, 56px on 1920px)
+
+  ctx.font = `500 ${fontSize}px "JetBrains Mono", ui-monospace, monospace`;
+
+  // Split into lines
+  const words = cleanName.split(/\s+/);
+  const lines: string[] = [];
+  let currentLine = '';
+
+  for (const word of words) {
+    const testLine = currentLine ? `${currentLine} ${word}` : word;
+    if (ctx.measureText(testLine).width > maxLineWidth && currentLine) {
+      lines.push(currentLine);
+      currentLine = word;
+    } else {
+      currentLine = testLine;
+    }
+  }
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+
+  if (lines.length > 3) {
+    lines.splice(2);
+    lines[1] = lines[1] + '...';
+  }
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  const lineHeight = fontSize * 1.35;
+  const totalTextHeight = lines.length * lineHeight;
+  const startY = (height - totalTextHeight) / 2 + lineHeight / 2;
+
+  ctx.save();
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+  ctx.shadowBlur = Math.round(fontSize * 0.28);
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 2;
+
+  ctx.fillStyle = '#ffffff';
+  lines.forEach((line, index) => {
+    ctx.fillText(line, width / 2, startY + index * lineHeight);
+  });
+
+  ctx.restore();
 }
 
 export async function generateCoverImage(

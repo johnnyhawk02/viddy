@@ -383,13 +383,13 @@ export async function convertImageAndAudioToVideo(
   await ffmpeg.writeFile(inputImg, imgData);
   await ffmpeg.writeFile(inputAud, audData);
 
-  const fpsVal = Math.max(1, Math.min(30, framerate || 1));
-  const fpsStr = String(fpsVal);
+  const fpsVal = Math.max(0.5, Math.min(30, framerate || 1));
+  const fpsStr = Number(fpsVal.toFixed(4)).toString();
 
   onLog({
     id: Math.random().toString(36).substring(2, 9),
     type: 'info',
-    message: `Executing FFmpeg compilation: ${fpsStr} FPS (still image mode), H.264 ultrafast, AAC 192k audio...`,
+    message: `Executing FFmpeg compilation: ${fpsStr} FPS (${framerate ? `${Math.round(framerate * 60)} BPM` : '1 frame/sec'}), H.264 ultrafast, AAC 192k audio...`,
     timestamp: new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }),
   });
 

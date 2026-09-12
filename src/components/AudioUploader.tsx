@@ -5,6 +5,7 @@ interface AudioUploaderProps {
   audioFile: MediaFile | null;
   onAudioSelected: (file: File) => void;
   onAudioRemoved: () => void;
+  onDurationDetected?: (duration: number) => void;
   disabled?: boolean;
 }
 
@@ -12,6 +13,7 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({
   audioFile,
   onAudioSelected,
   onAudioRemoved,
+  onDurationDetected,
   disabled = false,
 }) => {
   const [isDragging, setIsDragging] = useState(false);
@@ -95,13 +97,26 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({
             <audio
               id="audio-player-preview"
               controls
+              preload="auto"
               src={audioFile.previewUrl}
               className="w-full max-w-[210px] h-8"
+              onLoadedMetadata={(e) => {
+                const dur = e.currentTarget.duration;
+                if (dur && !isNaN(dur) && isFinite(dur) && dur > 0) {
+                  onDurationDetected?.(dur);
+                }
+              }}
+              onDurationChange={(e) => {
+                const dur = e.currentTarget.duration;
+                if (dur && !isNaN(dur) && isFinite(dur) && dur > 0) {
+                  onDurationDetected?.(dur);
+                }
+              }}
             />
           </div>
 
           <div className="flex items-center justify-between font-mono text-[11px] text-zinc-400 pt-1 border-t border-zinc-100">
-            <span>audio ready</span>
+            <span>{audioFile.duration ? formatDuration(audioFile.duration) : 'audio ready'}</span>
             <button
               id="btn-remove-audio"
               type="button"
