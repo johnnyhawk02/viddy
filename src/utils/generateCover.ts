@@ -11,6 +11,14 @@ export interface BlendPoint {
   color: RGBColor;
 }
 
+export type IllusionType =
+  | 'ripple'        // Concentric circular waves that warp depth perception
+  | 'vortex'        // Logarithmic spiral wave causing rotational/spinning illusion
+  | 'tunnel'        // Hyperbolic 3D funnel perspective creating depth suction
+  | 'interference'  // Moire grid interference creating floating ghost waves
+  | 'bulge'         // Sphere lens magnification warping local grid space
+  | 'wavy-lattice'; // Cross-sine standing wave causing shimmering fluid undulation
+
 export interface PolkaDotPattern {
   radius: number;
   spacing: number;
@@ -19,6 +27,10 @@ export interface PolkaDotPattern {
   jitter: number;
   opacity: number;
   color: RGBColor;
+  illusion: IllusionType;
+  illusionFrequency: number;
+  illusionStrength: number;
+  illusionCenter: { x: number; y: number };
 }
 
 export interface BlendConfig {
@@ -56,7 +68,8 @@ export function hslToRgb(h: number, s: number, l: number): RGBColor {
   };
 }
 
-const CURATED_VIBRANT_PAIRS: [string, string][] = [
+const CURATED_PAIRS: [string, string][] = [
+  // Vibrant pairs
   ['#ff007f', '#00dfd8'], // Neon magenta & cyan
   ['#ff3366', '#ff9933'], // Hot pink & solar orange
   ['#7928ca', '#ff007f'], // Electric violet & magenta
@@ -72,28 +85,65 @@ const CURATED_VIBRANT_PAIRS: [string, string][] = [
   ['#fd746c', '#ff9068'], // Bright coral & warm amber
   ['#8b5cf6', '#ec4899'], // Vivid violet & pink
   ['#38ef7d', '#11998e'], // Neon lime & deep turquoise
-  ['#667eea', '#764ba2'], // Indigo twilight & purple
   ['#ff512f', '#dd2476'], // Fiery vermilion & red-violet
-  ['#3a7bd5', '#3a6073'], // Deep cerulean & steel cyan
+
+  // Dark + Vibrant pairs (high contrast graphic style)
+  ['#09090b', '#ff007f'], // Obsidian & neon magenta
+  ['#0f172a', '#00dfd8'], // Midnight slate & electric cyan
+  ['#18181b', '#ff512f'], // Charcoal & blazing vermilion
+  ['#1e1b4b', '#a855f7'], // Deep indigo & radiant purple
+  ['#0d2818', '#38ef7d'], // Forest pine & neon emerald
+  ['#2a1215', '#ff3366'], // Dark blood plum & neon coral
+  ['#162032', '#38bdf8'], // Deep marine & vivid sky
+  ['#1e172a', '#f43f5e'], // Dark void & hot rose
+  ['#14281d', '#10b981'], // Obsidian emerald & mint neon
+  ['#1c1917', '#f59e0b'], // Warm stone & golden amber
+  ['#172554', '#00f2fe'], // Deep cobalt & cyan flare
+  ['#261411', '#fb7185'], // Dark espresso & rose petal
+
+  // Dark + Dark pairs (moody, sophisticated atmosphere)
+  ['#09090b', '#1e1b4b'], // Pure obsidian & midnight indigo
+  ['#0f172a', '#164e63'], // Midnight blue & deep petrol cyan
+  ['#14281d', '#09090b'], // Dark pine & obsidian
+  ['#1c1917', '#2a1b18'], // Warm stone & dark espresso
+  ['#1e293b', '#09090b'], // Slate graphite & pure dark
+  ['#282c34', '#111827'], // Dark metallic & obsidian ink
+  ['#2e1065', '#0f172a'], // Deep gothic violet & midnight
+  ['#1a102f', '#111827'], // Obsidian plum & dark gray
 ];
 
 export function getRandomBlendConfig(): BlendConfig {
-  const useCurated = Math.random() < 0.65;
+  const useCurated = Math.random() < 0.70;
   let colors: [RGBColor, RGBColor];
 
   if (useCurated) {
-    const pair = CURATED_VIBRANT_PAIRS[Math.floor(Math.random() * CURATED_VIBRANT_PAIRS.length)];
+    const pair = CURATED_PAIRS[Math.floor(Math.random() * CURATED_PAIRS.length)];
     const shuffled = Math.random() < 0.5 ? [pair[0], pair[1]] : [pair[1], pair[0]];
     colors = [hexToRgb(shuffled[0]), hexToRgb(shuffled[1])];
   } else {
-    // Generate vibrant complementary or high-contrast split hues
+    // Procedural generation: mix of vibrant, dark+vibrant, or dark+dark
+    const modeRoll = Math.random();
     const baseHue = Math.floor(Math.random() * 360);
-    const hue2 = (baseHue + 70 + Math.floor(Math.random() * 110)) % 360;
+    const hue2 = (baseHue + 60 + Math.floor(Math.random() * 120)) % 360;
 
-    colors = [
-      hslToRgb(baseHue, 92 + Math.floor(Math.random() * 8), 50 + Math.floor(Math.random() * 6)),
-      hslToRgb(hue2, 92 + Math.floor(Math.random() * 8), 50 + Math.floor(Math.random() * 6)),
-    ];
+    if (modeRoll < 0.40) {
+      // Dark + Vibrant
+      const darkFirst = Math.random() < 0.5;
+      const darkColor = hslToRgb(baseHue, 35 + Math.floor(Math.random() * 35), 7 + Math.floor(Math.random() * 12));
+      const vibrantColor = hslToRgb(hue2, 90 + Math.floor(Math.random() * 10), 48 + Math.floor(Math.random() * 8));
+      colors = darkFirst ? [darkColor, vibrantColor] : [vibrantColor, darkColor];
+    } else if (modeRoll < 0.65) {
+      // Dark + Dark (moody)
+      const dark1 = hslToRgb(baseHue, 40 + Math.floor(Math.random() * 30), 6 + Math.floor(Math.random() * 10));
+      const dark2 = hslToRgb(hue2, 45 + Math.floor(Math.random() * 30), 12 + Math.floor(Math.random() * 12));
+      colors = [dark1, dark2];
+    } else {
+      // Vibrant + Vibrant
+      colors = [
+        hslToRgb(baseHue, 92 + Math.floor(Math.random() * 8), 50 + Math.floor(Math.random() * 6)),
+        hslToRgb(hue2, 92 + Math.floor(Math.random() * 8), 50 + Math.floor(Math.random() * 6)),
+      ];
+    }
   }
 
   // Define diverse 2-point directional alignments across 1920x1080 canvas
@@ -141,20 +191,50 @@ function getRandomPolkaDotPattern(ownColor: RGBColor, otherColor: RGBColor, _sid
   const angles = [0, Math.PI / 12, Math.PI / 6, Math.PI / 4, -Math.PI / 12, -Math.PI / 6];
   const angle = angles[Math.floor(Math.random() * angles.length)];
 
+  const ownLum = 0.299 * ownColor.r + 0.587 * ownColor.g + 0.114 * ownColor.b;
+  const otherLum = 0.299 * otherColor.r + 0.587 * otherColor.g + 0.114 * otherColor.b;
+
   // Randomize dot color theme
   const styleRoll = Math.random();
   let color: RGBColor;
-  if (styleRoll < 0.60) {
-    // High-impact pop-art contrast: use the other color of the 2-point blend
+  let opacity = 0.35 + Math.random() * 0.28;
+
+  if (ownLum < 60 && otherLum < 60) {
+    // Both colors are dark - choose electric or luminous contrast dots
+    if (styleRoll < 0.50) {
+      color = { r: 255, g: 255, b: 255 }; // Crisp white dots
+      opacity = 0.35 + Math.random() * 0.25;
+    } else if (styleRoll < 0.82) {
+      // Vivid pop neon dots on dark
+      const neonHues = [
+        { r: 0, g: 223, b: 216 }, // cyan
+        { r: 255, g: 0, b: 127 }, // magenta
+        { r: 56, g: 239, b: 125 }, // lime
+        { r: 255, g: 153, b: 51 }, // orange
+        { r: 168, g: 85, b: 247 }, // purple
+      ];
+      color = neonHues[Math.floor(Math.random() * neonHues.length)];
+      opacity = 0.45 + Math.random() * 0.30;
+    } else {
+      // Subtle sleek tone-on-tone slightly lighter
+      color = {
+        r: Math.min(255, ownColor.r + 60),
+        g: Math.min(255, ownColor.g + 60),
+        b: Math.min(255, ownColor.b + 60),
+      };
+      opacity = 0.55 + Math.random() * 0.25;
+    }
+  } else if (styleRoll < 0.60) {
+    // High-impact contrast: use the other color of the 2-point blend
     color = otherColor;
-  } else if (styleRoll < 0.80) {
+  } else if (styleRoll < 0.82) {
     // Luminous crisp white dots
     color = { r: 255, g: 255, b: 255 };
-  } else if (styleRoll < 0.92) {
+  } else if (styleRoll < 0.94) {
     // Deep dark contrast dots
     color = { r: 16, g: 18, b: 24 };
   } else {
-    // Lighter energetic tint of the background color
+    // Energetic tint of the background color
     color = {
       r: Math.min(255, Math.round(ownColor.r * 1.35 + 25)),
       g: Math.min(255, Math.round(ownColor.g * 1.35 + 25)),
@@ -162,14 +242,39 @@ function getRandomPolkaDotPattern(ownColor: RGBColor, otherColor: RGBColor, _sid
     };
   }
 
+  const illusionTypes: IllusionType[] = [
+    'ripple',
+    'vortex',
+    'tunnel',
+    'interference',
+    'bulge',
+    'wavy-lattice',
+  ];
+  const illusion = illusionTypes[Math.floor(Math.random() * illusionTypes.length)];
+
+  // Illusion origin point: either near gradient anchors or canvas center
+  const centerOptions = [
+    { x: 1920 * (0.15 + Math.random() * 0.35), y: 1080 * (0.2 + Math.random() * 0.6) },
+    { x: 1920 * (0.55 + Math.random() * 0.35), y: 1080 * (0.2 + Math.random() * 0.6) },
+    { x: 1920 * 0.5, y: 1080 * 0.5 },
+  ];
+  const illusionCenter = centerOptions[Math.floor(Math.random() * centerOptions.length)];
+
+  const illusionFrequency = 0.008 + Math.random() * 0.016; // Spatial wavelength
+  const illusionStrength = 0.55 + Math.random() * 0.40; // Size variation magnitude
+
   return {
-    radius: 6 + Math.floor(Math.random() * 9), // 6px to 14px
-    spacing: 38 + Math.floor(Math.random() * 26), // 38px to 64px
-    staggered: Math.random() < 0.65,
+    radius: 7 + Math.floor(Math.random() * 9), // 7px to 15px base radius
+    spacing: 34 + Math.floor(Math.random() * 22), // 34px to 56px tighter grid for prominent illusion
+    staggered: Math.random() < 0.70,
     angle,
-    jitter: Math.random() < 0.35 ? 1.5 + Math.random() * 2.5 : 0,
-    opacity: 0.30 + Math.random() * 0.28, // 0.30 to 0.58
+    jitter: Math.random() < 0.25 ? 1.0 + Math.random() * 2.0 : 0,
+    opacity,
     color,
+    illusion,
+    illusionFrequency,
+    illusionStrength,
+    illusionCenter,
   };
 }
 
@@ -271,16 +376,15 @@ function drawDotFieldForColor(
 
       if (weight <= 0.04) continue;
 
-      let alpha = dots.opacity * weight;
+      // Optical illusion size modulation formula:
+      // Computes a perceptual scale factor based on mathematical interference / wave patterns
+      const scaleFactor = calculateIllusionScale(x, y, dots);
 
-      // Soft center attenuation to protect track title legibility
-      const centerDist = Math.hypot(x - centerX, y - centerY);
-      if (centerDist < 380) {
-        const factor = Math.max(0.12, (centerDist - 120) / 260);
-        alpha *= factor;
-      }
+      // Final dot radius with optical variation (clamped to prevent overlapping or disappearing dots)
+      const maxRadius = (dots.spacing / 2) * 0.92;
+      const r = Math.max(1.8, Math.min(maxRadius, dots.radius * scaleFactor * (0.65 + 0.35 * weight)));
 
-      const r = dots.radius * (0.65 + 0.35 * weight);
+      const alpha = dots.opacity * weight;
 
       ctx.beginPath();
       ctx.arc(x, y, r, 0, Math.PI * 2);
@@ -288,6 +392,80 @@ function drawDotFieldForColor(
       ctx.fill();
     }
   }
+}
+
+/**
+ * Optical illusion formulas calculating dot radius modulation factor.
+ * Returns scale multiplier roughly between 0.25 and 1.85 to create startling visual distortions:
+ * - 'ripple': Bulging 3D water droplet concentric interference
+ * - 'vortex': Spiral kinetic spin illusion
+ * - 'tunnel': 3D hyper-depth vanishing point warp
+ * - 'interference': Moire floating wave grids
+ * - 'bulge': Fish-eye gravitational lens / sphere distortion
+ * - 'wavy-lattice': Oscillating liquid surface undulation
+ */
+function calculateIllusionScale(x: number, y: number, dots: PolkaDotPattern): number {
+  const cx = dots.illusionCenter.x;
+  const cy = dots.illusionCenter.y;
+  const dx = x - cx;
+  const dy = y - cy;
+  const dist = Math.hypot(dx, dy);
+  const angle = Math.atan2(dy, dx);
+  const freq = dots.illusionFrequency;
+  const strength = dots.illusionStrength;
+
+  let wave = 0;
+
+  switch (dots.illusion) {
+    case 'ripple': {
+      // Concentric sinusoidal rings giving a 3D spherical drop / undulating liquid depth
+      wave = Math.sin(dist * freq * 1.5);
+      break;
+    }
+    case 'vortex': {
+      // Archimedean / logarithmic spiral arm: radius varies with spiral phase causing spin illusion
+      const spiralPhase = dist * freq * 1.2 - angle * 3;
+      wave = Math.sin(spiralPhase);
+      break;
+    }
+    case 'tunnel': {
+      // Inverse logarithmic depth compression: dots grow then compress rapidly toward a vanishing center
+      const tunnelPhase = Math.log(Math.max(1, dist)) * 5.2 * (freq / 0.01);
+      wave = Math.sin(tunnelPhase);
+      break;
+    }
+    case 'interference': {
+      // Crossed high-frequency wave planes generating Moire beat patterns & phantom floating bands
+      const wave1 = Math.sin((x * 0.707 + y * 0.707) * freq * 1.4);
+      const wave2 = Math.sin((x * 0.707 - y * 0.707) * freq * 1.4);
+      wave = wave1 * wave2;
+      break;
+    }
+    case 'bulge': {
+      // Fish-eye lens magnification: exponential bell curve bulging the surface outward in 3D
+      const sphereRadius = 450;
+      if (dist < sphereRadius) {
+        const norm = dist / sphereRadius;
+        // Cosine dome curve
+        wave = Math.cos((norm * Math.PI) / 2) * 1.4;
+      } else {
+        wave = -0.35 * Math.sin(dist * freq * 0.8);
+      }
+      break;
+    }
+    case 'wavy-lattice':
+    default: {
+      // Orthogonal sine grid creating shifting ripple hills and troughs
+      const waveX = Math.sin(x * freq * 1.2);
+      const waveY = Math.cos(y * freq * 1.2);
+      wave = (waveX + waveY) * 0.65;
+      break;
+    }
+  }
+
+  // Base scale is 1.0; modulated by strength * wave
+  // Returns value typically within [0.28, 1.85]
+  return Math.max(0.25, 1.0 + wave * strength);
 }
 
 export async function generateCoverImage(
@@ -349,32 +527,11 @@ export async function generateCoverImage(
   const totalTextHeight = lines.length * lineHeight;
   const startY = (canvas.height - totalTextHeight) / 2 + lineHeight / 2;
 
-  // Tasteful soft ambient center vignette to ensure crisp legibility on any vibrant blend
-  const centerVignette = ctx.createRadialGradient(
-    canvas.width / 2,
-    canvas.height / 2,
-    0,
-    canvas.width / 2,
-    canvas.height / 2,
-    750
-  );
-  centerVignette.addColorStop(0, 'rgba(0, 0, 0, 0.42)');
-  centerVignette.addColorStop(0.6, 'rgba(0, 0, 0, 0.18)');
-  centerVignette.addColorStop(1, 'rgba(0, 0, 0, 0)');
-  ctx.fillStyle = centerVignette;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
   ctx.save();
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
-  ctx.shadowBlur = 14;
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+  ctx.shadowBlur = 16;
   ctx.shadowOffsetX = 0;
   ctx.shadowOffsetY = 2;
-
-  // Minimalist dot marker above track name
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-  ctx.beginPath();
-  ctx.arc(canvas.width / 2, startY - lineHeight / 2 - 28, 4.5, 0, Math.PI * 2);
-  ctx.fill();
 
   // Primary track name in clean white
   ctx.fillStyle = '#ffffff';
