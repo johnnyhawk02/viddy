@@ -1,6 +1,6 @@
 {
   "name": "Bézier Cover & MP4 Video Generator",
-  "description": "Generate algorithmic cover art using Bézier formulae for dot position and size with rich faders, then compile into an MP4 video with your audio.",
+  "description": "Upload an image and audio track to compile a 1fps MP4 video.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

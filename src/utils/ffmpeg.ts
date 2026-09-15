@@ -21,7 +21,7 @@ export async function toBlobURL(url: string, mimeType: string): Promise<string> 
     try {
       return await window.FFmpegUtil.toBlobURL(url, mimeType);
     } catch {
-      // fallback to manual fetch
+      // fallback
     }
   }
   const res = await fetch(url);
@@ -57,7 +57,6 @@ export async function initFFmpeg(
   }
 
   loadPromise = (async () => {
-    // Wait for window.FFmpegWASM if still loading
     let retries = 0;
     while (!window.FFmpegWASM && retries < 30) {
       await new Promise((r) => setTimeout(r, 100));
@@ -97,50 +96,107 @@ export async function initFFmpeg(
 }
 
 /**
- * Creates an MP4 video combining the static Bézier cover art frame + uploaded audio
+ * Creates a 1fps MP4 video by combining the uploaded image and audio file
  */
-export async function createStaticCoverVideo(
-  imageBlob: Blob,
+export async function createOneFpsVideo(
+  imageFile: File,
   audioFile: File,
+  audioDuration?: number,
   onProgress?: (progress: RenderProgress) => void,
   onLog?: (msg: string) => void
 ): Promise<VideoOutput> {
   const ffmpeg = await initFFmpeg(onLog);
 
-  const progressHandler = ({ progress }: { progress: number }) => {
-    const p = Math.max(0, Math.min(1, progress || 0));
-    onProgress?.({
-      ratio: p,
-      percentage: Math.round(p * 100),
-    });
+  let maxRatio = 0.05;
+  onProgress?.({ ratio: maxRatio, percentage: Math.round(maxRatio * 100) });
+
+  const progressHandler = ({ progress, time }: { progress: number; time?: number }) => {
+    let p = 0;
+    if (progress && progress > 0 && progress <= 1) {
+      p = progress;
+    } else if (time && audioDuration && audioDuration > 0) {
+      // time is in microseconds in modern ffmpeg.wasm (or seconds)
+      const sec = time > 100000 ? time / 1000000 : time;
+      p = Math.min(1, sec / audioDuration);
+    }
+
+    if (p > maxRatio) {
+      maxRatio = p;
+      onProgress?.({
+        ratio: maxRatio,
+        percentage: Math.min(99, Math.round(maxRatio * 100)),
+      });
+    }
+  };
+
+  const logHandler = ({ message }: { message: string }) => {
+    onLog?.(message);
+
+    // Parse time=HH:MM:SS.XX from ffmpeg output for smooth progress
+    if (audioDuration && audioDuration > 0) {
+      const timeMatch = message.match(/time=(\d{2}):(\d{2}):(\d{2}\.\d+)/);
+      if (timeMatch) {
+        const hours = parseFloat(timeMatch[1]);
+        const mins = parseFloat(timeMatch[2]);
+        const secs = parseFloat(timeMatch[3]);
+        const totalSecs = hours * 3600 + mins * 60 + secs;
+        const ratio = Math.min(0.99, totalSecs / audioDuration);
+        if (ratio > maxRatio) {
+          maxRatio = ratio;
+          onProgress?.({
+            ratio: maxRatio,
+            percentage: Math.round(maxRatio * 100),
+          });
+        }
+      }
+    }
   };
 
   ffmpeg.on('progress', progressHandler);
+  ffmpeg.on('log', logHandler);
+
+  const imgExt = imageFile.name.split('.').pop()?.toLowerCase() || 'png';
+  const audioExt = audioFile.name.split('.').pop()?.toLowerCase() || 'mp3';
+  const imgFilename = `input_image.${imgExt}`;
+  const audioFilename = `input_audio.${audioExt}`;
+  const outFilename = 'output_1fps.mp4';
 
   try {
-    // 1. Write the static Bézier cover image
-    const imgData = await fetchFile(imageBlob);
-    await ffmpeg.writeFile('cover.png', imgData);
+    // 1. Write the image
+    onLog?.('Loading image into encoder...');
+    const imgData = await fetchFile(imageFile);
+    await ffmpeg.writeFile(imgFilename, imgData);
 
-    // 2. Write the user's audio file
-    const audioExt = audioFile.name.split('.').pop()?.toLowerCase() || 'mp3';
-    const audioFilename = `input_audio.${audioExt}`;
+    // 2. Write the audio
+    onLog?.('Loading audio into encoder...');
     const audioData = await fetchFile(audioFile);
     await ffmpeg.writeFile(audioFilename, audioData);
 
-    // 3. Encode static image + audio to MP4 using libx264 with stillimage tune
-    onLog?.('Encoding static Bézier cover frame and muxing audio...');
+    // 3. Run ffmpeg command to create 1fps MP4
+    // -framerate 1 sets input image framerate to 1 fps
+    // -loop 1 loops the single image
+    // -vf scale=trunc(iw/2)*2:trunc(ih/2)*2 ensures even dimensions for H.264
+    // -r 1 forces output framerate to 1 fps
+    // -tune stillimage optimizes x264 for static images
+    // -c:a aac encodes audio to standard AAC
+    // -pix_fmt yuv420p for maximum compatibility with all players
+    // -shortest ends the video when the audio ends
+    onLog?.('Encoding 1fps MP4 video...');
     await ffmpeg.exec([
       '-loop',
       '1',
       '-framerate',
-      '2',
+      '1',
       '-i',
-      'cover.png',
+      imgFilename,
       '-i',
       audioFilename,
+      '-vf',
+      'scale=trunc(iw/2)*2:trunc(ih/2)*2',
       '-c:v',
       'libx264',
+      '-r',
+      '1',
       '-tune',
       'stillimage',
       '-c:a',
@@ -150,31 +206,39 @@ export async function createStaticCoverVideo(
       '-pix_fmt',
       'yuv420p',
       '-shortest',
-      'output.mp4',
+      outFilename,
     ]);
 
     // 4. Read output MP4
-    const data = await ffmpeg.readFile('output.mp4');
+    const data = await ffmpeg.readFile(outFilename);
     const videoBlob = new Blob([data.buffer], { type: 'video/mp4' });
     const videoUrl = URL.createObjectURL(videoBlob);
 
-    // 5. Clean up virtual FS
+    // 5. Clean up virtual filesystem
     try {
-      await ffmpeg.deleteFile('cover.png');
+      await ffmpeg.deleteFile(imgFilename);
       await ffmpeg.deleteFile(audioFilename);
-      await ffmpeg.deleteFile('output.mp4');
+      await ffmpeg.deleteFile(outFilename);
     } catch {
-      // ignore
+      // ignore cleanup errors
     }
 
-    const cleanBaseName = audioFile.name.replace(/\.[^/.]+$/, '').toLowerCase().replace(/[^a-z0-9_-]+/g, '_');
+    onProgress?.({ ratio: 1, percentage: 100 });
+
+    const cleanBaseName = audioFile.name
+      .replace(/\.[^/.]+$/, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, '_');
+
     return {
       blob: videoBlob,
       url: videoUrl,
       size: videoBlob.size,
-      filename: `${cleanBaseName}_bezier_cover.mp4`,
+      filename: `${cleanBaseName || 'video'}_1fps.mp4`,
+      duration: audioDuration,
     };
   } finally {
     ffmpeg.off('progress', progressHandler);
+    ffmpeg.off('log', logHandler);
   }
 }

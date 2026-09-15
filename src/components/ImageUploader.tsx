@@ -1,48 +1,52 @@
 import React, { useRef, useState } from 'react';
-import { AudioMediaFile } from '../types';
-import { Music, Upload, X, RefreshCw, Sparkles, Volume2 } from 'lucide-react';
-import { createSampleAudio } from '../utils/sampleMedia';
+import { ImageMediaFile } from '../types';
+import { Image as ImageIcon, Upload, X, RefreshCw, Sparkles } from 'lucide-react';
+import { createSampleImage } from '../utils/sampleMedia';
 
-interface AudioUploaderProps {
-  audioFile: AudioMediaFile | null;
-  onAudioSelect: (file: AudioMediaFile | null) => void;
+interface ImageUploaderProps {
+  imageFile: ImageMediaFile | null;
+  onImageSelect: (file: ImageMediaFile | null) => void;
 }
 
-export const AudioUploader: React.FC<AudioUploaderProps> = ({
-  audioFile,
-  onAudioSelect,
+export const ImageUploader: React.FC<ImageUploaderProps> = ({
+  imageFile,
+  onImageSelect,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isGeneratingSample, setIsGeneratingSample] = useState(false);
 
   const processFile = (file: File) => {
-    if (!file.type.startsWith('audio/') && !file.name.match(/\.(mp3|wav|ogg|flac|m4a|aac)$/i)) {
-      alert('Please upload a valid audio file (MP3, WAV, OGG, FLAC, M4A, AAC).');
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload a valid image file (PNG, JPG, WEBP, GIF, SVG, etc.).');
       return;
     }
 
     const previewUrl = URL.createObjectURL(file);
-    const audio = new Audio(previewUrl);
-    audio.onloadedmetadata = () => {
-      onAudioSelect({
+    const img = new Image();
+    img.onload = () => {
+      onImageSelect({
         file,
         name: file.name,
         size: file.size,
-        type: file.type || 'audio/mpeg',
+        type: file.type || 'image/png',
         previewUrl,
-        duration: audio.duration,
+        width: img.naturalWidth || 1920,
+        height: img.naturalHeight || 1080,
       });
     };
-    audio.onerror = () => {
-      onAudioSelect({
+    img.onerror = () => {
+      onImageSelect({
         file,
         name: file.name,
         size: file.size,
-        type: file.type || 'audio/mpeg',
+        type: file.type || 'image/png',
         previewUrl,
+        width: 1920,
+        height: 1080,
       });
     };
+    img.src = previewUrl;
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -73,7 +77,7 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({
     e.stopPropagation();
     try {
       setIsGeneratingSample(true);
-      const sample = await createSampleAudio();
+      const sample = await createSampleImage();
       processFile(sample);
     } finally {
       setIsGeneratingSample(false);
@@ -87,27 +91,20 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  const formatDuration = (seconds?: number) => {
-    if (!seconds || isNaN(seconds)) return '';
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
   return (
-    <div id="audio-uploader-card" className="p-5 bg-zinc-900/90 border border-zinc-800 rounded-2xl flex flex-col gap-4">
+    <div id="image-uploader-card" className="p-5 bg-zinc-900/90 border border-zinc-800 rounded-2xl flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-lg bg-zinc-800 flex items-center justify-center text-zinc-300">
-            <Music className="w-4 h-4" />
+            <ImageIcon className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="font-mono text-sm text-zinc-100 font-semibold">2. Audio Track</h3>
-            <p className="font-mono text-xs text-zinc-500">Audio soundtrack for MP4</p>
+            <h3 className="font-mono text-sm text-zinc-100 font-semibold">1. Cover Image</h3>
+            <p className="font-mono text-xs text-zinc-500">Still frame for 1fps video</p>
           </div>
         </div>
 
-        {audioFile ? (
+        {imageFile ? (
           <span className="font-mono text-xs text-emerald-400 flex items-center gap-1.5 bg-emerald-950/50 border border-emerald-800/40 px-2 py-0.5 rounded-full">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
             Loaded
@@ -118,7 +115,7 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({
             onClick={handleLoadSample}
             disabled={isGeneratingSample}
             className="text-xs font-mono text-zinc-400 hover:text-zinc-200 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-zinc-800/80 hover:bg-zinc-800 cursor-pointer transition-colors"
-            title="Load sample audio"
+            title="Load sample image"
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
             <span>{isGeneratingSample ? 'Generating...' : 'Sample'}</span>
@@ -129,57 +126,51 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({
       <input
         ref={fileInputRef}
         type="file"
-        accept="audio/*,.mp3,.wav,.ogg,.flac,.m4a,.aac"
+        accept="image/*"
         onChange={handleFileInput}
         className="hidden"
       />
 
-      {audioFile ? (
+      {imageFile ? (
         <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-3 p-4 rounded-xl bg-zinc-950 border border-zinc-800/90">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5 overflow-hidden">
-                <Volume2 className="w-4 h-4 text-zinc-400 shrink-0" />
-                <div className="flex flex-col truncate">
-                  <span className="font-mono text-xs text-zinc-100 font-medium truncate" title={audioFile.name}>
-                    {audioFile.name}
-                  </span>
-                  <span className="font-mono text-[11px] text-zinc-500">
-                    {formatSize(audioFile.size)} {audioFile.duration ? `· ${formatDuration(audioFile.duration)}` : ''}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-1 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors cursor-pointer"
-                  title="Replace audio"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onAudioSelect(null)}
-                  className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors cursor-pointer"
-                  title="Remove audio"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-
-            <audio
-              controls
-              src={audioFile.previewUrl}
-              className="w-full h-8 accent-white"
+          {/* Preview Container */}
+          <div className="relative rounded-xl overflow-hidden bg-black border border-zinc-800 group aspect-video flex items-center justify-center">
+            <img
+              src={imageFile.previewUrl}
+              alt={imageFile.name}
+              className="w-full h-full object-contain"
             />
+            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="px-3 py-1.5 rounded-lg bg-white text-zinc-950 font-mono text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-lg hover:bg-zinc-200 transition-colors"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Replace</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onImageSelect(null)}
+                className="px-3 py-1.5 rounded-lg bg-zinc-800 text-zinc-200 font-mono text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-lg hover:bg-zinc-700 transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>Remove</span>
+              </button>
+            </div>
           </div>
 
-          <p className="font-mono text-[11px] text-zinc-500 px-1">
-            Audio stream will be muxed without recompression or encoded via AAC for universal playback.
-          </p>
+          {/* Image Details */}
+          <div className="flex items-center justify-between font-mono text-xs text-zinc-400 px-1">
+            <span className="truncate max-w-[200px]" title={imageFile.name}>
+              {imageFile.name}
+            </span>
+            <div className="flex items-center gap-2 text-zinc-500 shrink-0">
+              <span>{imageFile.width}×{imageFile.height}</span>
+              <span>·</span>
+              <span>{formatSize(imageFile.size)}</span>
+            </div>
+          </div>
         </div>
       ) : (
         <div
@@ -197,13 +188,13 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({
             <Upload className="w-5 h-5" />
           </div>
           <p className="font-mono text-sm text-zinc-200 font-medium text-center">
-            Upload Audio Track
+            Upload Cover Image
           </p>
           <p className="font-mono text-xs text-zinc-500 mt-1 text-center">
             Drag & drop or click to browse
           </p>
           <p className="font-mono text-[11px] text-zinc-600 mt-2">
-            MP3, WAV, AAC, M4A, FLAC, OGG
+            PNG, JPG, WEBP, GIF, SVG
           </p>
         </div>
       )}
